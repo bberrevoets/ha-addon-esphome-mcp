@@ -8,8 +8,8 @@ RUN apk add --no-cache \
     musl-dev \
     libffi-dev \
     openssl-dev \
+    rust \
     cargo \
-    platformio-core \
     git
 
 # Install Python dependencies and ESPHome
