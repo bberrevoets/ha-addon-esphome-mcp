@@ -24,4 +24,6 @@ COPY run.sh /opt/
 
 RUN chmod a+x /opt/run.sh
 
+WORKDIR /opt
+
 CMD ["/opt/run.sh"]
