@@ -18,6 +18,7 @@ log = logging.getLogger("esphome-mcp")
 
 mcp = FastMCP(
     name="esphome",
+    host="0.0.0.0",
     stateless_http=True,
 )
 
