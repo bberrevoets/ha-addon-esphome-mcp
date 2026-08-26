@@ -24,6 +24,9 @@ instead of SSH, getting direct access to ESPHome CLI and the
     - `tools.py` — All tool implementations (no SSH, local filesystem)
     - `auth.py` — Bearer token middleware
   - `DOCS.md` — Add-on documentation page shown in HA UI
+  - `CHANGELOG.md` — Add-on changelog; must live here (next to
+    `config.yaml`) or HA shows "No changelog found" on update. The
+    root `CHANGELOG.md` is only a pointer to this file
 
 ## Key Conventions
 
@@ -65,7 +68,8 @@ docker run -p 8099:8099 -v /path/to/config:/config -e ESPHOME_MCP_AUTH_TOKEN=tes
 1. Bump the base-image tag in `esphome-mcp/build.yaml` to the latest stable
    ESPHome (`ghcr.io/esphome/esphome:<tag>`, amd64 + arm64 are published).
 2. Bump `version:` in `esphome-mcp/config.yaml`.
-3. Add a CHANGELOG entry and update README/DOCS if tools changed.
+3. Add an entry to `esphome-mcp/CHANGELOG.md` (the copy HA displays) and
+   update README/DOCS if tools changed.
 4. Merge to `main` — HA picks up the new version from the repository.
    Users must reinstall (not just restart) when the base image changed.
 
