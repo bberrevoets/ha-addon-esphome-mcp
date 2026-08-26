@@ -1,0 +1,38 @@
+esphome-mcp/icon.svg
+  s_1269bd557c1f0a::t_59b0dc68be5053 1-61
+esphome-mcp/logo.svg
+  s_1269bd557c1f0a::t_e7f9847c19d136 1-61
+esphome-mcp/DOCS.md
+  s_1269bd557c1f0a::t_2cc12361297ca7 126-138
+CLAUDE.md
+  s_1269bd557c1f0a::t_a205e7672872ef 16-18,30-31,63-67,71-74,76-102
+scripts/deploy-dev.sh
+  s_1269bd557c1f0a::t_434f26246cf0fa 1-48,52-55,57-59,61-90,92-107,110-111,114-117,119-123
+  s_1269bd557c1f0a::t_4b3e1210ce7e31 49-51,56,60,91,108-109,112-113,118
+README.md
+  s_1269bd557c1f0a::t_2cc12361297ca7 3-4,83-98
+scripts/render-icons.py
+  s_1269bd557c1f0a::t_a8ee03f0c4b2d2 1-79
+.gitattributes
+  s_1269bd557c1f0a::t_2cc12361297ca7 4-6
+esphome-mcp/CHANGELOG.md
+  s_1269bd557c1f0a::t_2cc12361297ca7 11-34
+esphome-mcp/config.yaml
+  s_1269bd557c1f0a::t_23c7b874ce326a 2
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "8869ada2af00094924168ace19c741095fd326bc",
+  "prompts": {},
+  "sessions": {
+    "s_1269bd557c1f0a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d43a93b2-f5cb-4a9a-b405-33b0cb3f8fb3",
+        "model": "claude-fable-5"
+      },
+      "human_author": "B.N. Berrevoets <bert@berrevoets.net>"
+    }
+  }
+}
