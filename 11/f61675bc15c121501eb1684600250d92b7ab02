@@ -1,0 +1,46 @@
+esphome-mcp/Dockerfile
+  s_f536fd382c8d13::t_28d9967926a8fb 7-13
+esphome-mcp/build.yaml
+  s_f536fd382c8d13::t_28d9967926a8fb 1-3,5-6
+CLAUDE.md
+  s_f536fd382c8d13::t_df6e569a3c40ae 35-37,40-49,58,62-69
+  s_f536fd382c8d13::t_079704fef8fdfe 70
+CHANGELOG.md
+  s_f536fd382c8d13::t_a3cc736268a158 44-54
+  s_f536fd382c8d13::t_24548ef3ef86ef 8,11,15-43,55-63,71,73-75,79
+  s_f536fd382c8d13::t_df3e2bb08a7fa2 80
+esphome-mcp/server/main.py
+  s_f536fd382c8d13::t_9a7304f1112579 3,8,28-37,42,46-47,49,53,59,63,73,77-86,89,94,98,107,111,114-116,122,126,135,139,148,153,159,163,172
+esphome-mcp/DOCS.md
+  s_f536fd382c8d13::t_df6e569a3c40ae 67,69,94-128
+README.md
+  s_f536fd382c8d13::t_df6e569a3c40ae 49-52,58-68
+  s_f536fd382c8d13::t_871c40c4dbb080 69
+esphome-mcp/requirements.txt
+  s_f536fd382c8d13::t_0513167c007b57 1-3
+esphome-mcp/config.yaml
+  s_f536fd382c8d13::t_28d9967926a8fb 2
+esphome-mcp/server/tools.py
+  s_f536fd382c8d13::t_5470358302718c 355-360
+  s_f536fd382c8d13::t_f36785f3cc1023 6,33-46,102-104,106-114,154-162,170,178-180,185,187-196,203,208,212-213,217,220-354,361-376,400,453,478-483,488-496,500,502-504,517,525-528,531-536,540-546,550-579
+.markdownlint.json
+  s_f536fd382c8d13::t_873ea18593d38d 2-4
+esphome-mcp/run.sh
+  s_f536fd382c8d13::t_28d9967926a8fb 8,10-15,20,24,40-63,65,67-68
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "11f61675bc15c121501eb1684600250d92b7ab02",
+  "prompts": {},
+  "sessions": {
+    "s_f536fd382c8d13": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "86af7f38-27ef-4547-9888-5e7f92fe7dcf",
+        "model": "claude-fable-5"
+      },
+      "human_author": "B.N. Berrevoets <bert@berrevoets.net>"
+    }
+  }
+}
