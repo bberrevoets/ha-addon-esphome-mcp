@@ -46,7 +46,8 @@ Author: *Bert Berrevoets, Claude Code*
   same filename is never used instead, and background builds are keyed by
   that path as well. `esphome.name` wins over `friendly_name` and active
   configs over archived copies; a name that still matches several configs
-  is reported as ambiguous instead of silently picking the first one.
+  (or is both a filename stem and another device's name) is reported as
+  ambiguous instead of silently picking one — pass the `.yaml` filename.
 
 ## [1.2.1] - 2026-08-26
 

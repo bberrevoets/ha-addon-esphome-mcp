@@ -85,43 +85,60 @@ def _resolve_device(device: str) -> str:
     (``co2-woonkamer``), an explicit archived path (``archive/old.yaml``) or
     the device's ``esphome.name`` / ``friendly_name`` as printed by
     esphome_list_devices (``co2-sensor1``). The filename does not have to
-    match the device name, so when ``<device>.yaml`` does not exist the
-    configs (active and archived) are scanned for a matching name. Archived
-    matches keep their ``archive/`` prefix so an active config with the same
-    filename is never picked instead.
+    match the device name.
 
-    Matching prefers ``esphome.name`` over ``friendly_name`` and active
-    configs over archived ones (an archived copy of a device is normal).
-    If that still leaves more than one candidate, DeviceLookupError is
-    raised so the caller can pass the filename instead of guessing.
+    An explicit ``*.yaml`` argument always selects that file (active first,
+    then ``archive/``). A bare name is looked up per tier — active configs
+    first, archived copies only if nothing active matches — and within a
+    tier a file stem wins over ``esphome.name``, which wins over
+    ``friendly_name``. Archived matches keep their ``archive/`` prefix. If a
+    bare name matches several configs of the same tier (two devices with the
+    same name, or a file stem that is also another device's name),
+    DeviceLookupError is raised so the caller passes the filename instead of
+    the tools guessing.
     """
     device = device.strip().replace("\\", "/")
     filename = device if device.endswith(".yaml") else f"{device}.yaml"
-    if os.path.isfile(os.path.join(ESPHOME_DIR, filename)):
+    if device.endswith(".yaml") or "/" in device or not device:
+        if os.path.isfile(os.path.join(ESPHOME_DIR, filename)):
+            return filename
+        if "/" not in filename and os.path.isfile(
+            os.path.join(ESPHOME_DIR, "archive", filename)
+        ):
+            return f"archive/{filename}"
         return filename
-    if "/" not in filename and os.path.isfile(
-        os.path.join(ESPHOME_DIR, "archive", filename)
-    ):
-        return f"archive/{filename}"
 
     wanted = device.lower()
-    if not wanted:
-        return filename
-    infos = [(path, _parse_device_info(path)) for path in _device_yaml_files()]
     archive_dir = os.path.join(ESPHOME_DIR, "archive")
-    for field in ("name", "friendly_name"):
-        matches = [path for path, info in infos if info[field].lower() == wanted]
-        if not matches:
-            continue
-        active = [p for p in matches if os.path.dirname(p) != archive_dir]
-        candidates = active or matches
-        if len(candidates) > 1:
-            listed = ", ".join(_rel(p) for p in candidates)
-            raise DeviceLookupError(
-                f"Device '{device}' is ambiguous: {field} matches {listed}. "
-                "Pass the YAML filename instead."
-            )
-        return _rel(candidates[0])
+    infos = [(path, _parse_device_info(path)) for path in _device_yaml_files()]
+    tiers = (
+        [(p, i) for p, i in infos if os.path.dirname(p) != archive_dir],
+        [(p, i) for p, i in infos if os.path.dirname(p) == archive_dir],
+    )
+    for tier_dir, tier in zip((ESPHOME_DIR, archive_dir), tiers):
+        file_hit = os.path.join(tier_dir, filename)
+        if not os.path.isfile(file_hit):
+            file_hit = None
+        for field in ("name", "friendly_name"):
+            hits = [p for p, i in tier if i[field].lower() == wanted and p != file_hit]
+            if file_hit and hits:
+                listed = ", ".join(_rel(p) for p in [file_hit, *hits])
+                raise DeviceLookupError(
+                    f"Device '{device}' is ambiguous: it is the filename of "
+                    f"{_rel(file_hit)} and the {field} of "
+                    f"{', '.join(_rel(p) for p in hits)}. Pass the YAML filename "
+                    f"instead ({listed})."
+                )
+            if len(hits) > 1:
+                listed = ", ".join(_rel(p) for p in hits)
+                raise DeviceLookupError(
+                    f"Device '{device}' is ambiguous: {field} matches {listed}. "
+                    "Pass the YAML filename instead."
+                )
+            if hits and not file_hit:
+                return _rel(hits[0])
+        if file_hit:
+            return _rel(file_hit)
     return filename
 
 
