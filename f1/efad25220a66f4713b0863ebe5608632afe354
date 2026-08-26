@@ -1,0 +1,28 @@
+esphome-mcp/Dockerfile
+  s_f536fd382c8d13::t_42ed956f8ebfc8 27-31,33-34
+CLAUDE.md
+  s_f536fd382c8d13::t_114952b97b9741 35-38
+esphome-mcp/config.yaml
+  s_f536fd382c8d13::t_114952b97b9741 2
+esphome-mcp/CHANGELOG.md
+  s_f536fd382c8d13::t_114952b97b9741 11-24
+esphome-mcp/server/main.py
+  s_f536fd382c8d13::t_3c07a0d3879d8f 11-12
+  s_f536fd382c8d13::t_c7c69852fe0a60 187-198
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "f1efad25220a66f4713b0863ebe5608632afe354",
+  "prompts": {},
+  "sessions": {
+    "s_f536fd382c8d13": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "86af7f38-27ef-4547-9888-5e7f92fe7dcf",
+        "model": "claude-fable-5"
+      },
+      "human_author": "B.N. Berrevoets <bert@berrevoets.net>"
+    }
+  }
+}
