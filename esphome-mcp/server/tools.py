@@ -7,7 +7,10 @@ import base64
 import glob
 import logging
 import os
+import re
 import subprocess
+import threading
+import time
 
 import yaml
 
@@ -17,6 +20,18 @@ ESPHOME_DIR = os.environ.get("ESPHOME_DIR", "/config/esphome")
 ESPHOME_BIN = "esphome"
 
 FORBIDDEN_FILES = {"secrets.yaml", ".secret.yaml"}
+
+# How long compile/flash wait synchronously before returning a pollable
+# handle. Must stay comfortably under the MCP client's request timeout so a
+# long build returns a handle instead of erroring with a transport timeout.
+SYNC_WAIT_WINDOW = 45
+# Hard server-side caps on background builds.
+COMPILE_TIMEOUT = 600
+FLASH_TIMEOUT = 900
+
+# Background build registry, keyed by device YAML filename.
+_BUILDS: dict[str, dict] = {}
+_BUILDS_LOCK = threading.Lock()
 
 
 # ---------------------------------------------------------------------------
@@ -65,6 +80,118 @@ def _run(cmd: list[str], timeout: int = 120, cwd: str | None = None) -> str:
         return f"Command not found: {e}"
 
 
+# ---------------------------------------------------------------------------
+# Background builds (compile/flash) — long jobs run in a thread so a slow
+# build returns a pollable handle instead of hitting the MCP request timeout.
+# ---------------------------------------------------------------------------
+def _build_worker(key: str, cmd: list[str], timeout: int) -> None:
+    job = _BUILDS[key]
+    try:
+        proc = subprocess.Popen(
+            cmd,
+            cwd=ESPHOME_DIR,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+        )
+    except FileNotFoundError as e:
+        with _BUILDS_LOCK:
+            job["status"] = "failed"
+            job["returncode"] = -1
+            job["lines"].append(f"Command not found: {e}")
+            job["finished"] = time.time()
+        return
+
+    killer = threading.Timer(timeout, proc.kill)
+    killer.start()
+    try:
+        for line in proc.stdout:
+            with _BUILDS_LOCK:
+                job["lines"].append(line.rstrip("\n"))
+        proc.wait()
+    finally:
+        killer.cancel()
+
+    with _BUILDS_LOCK:
+        job["returncode"] = proc.returncode
+        job["finished"] = time.time()
+        if proc.returncode == 0:
+            job["status"] = "done"
+        elif proc.returncode is not None and proc.returncode < 0:
+            job["status"] = "failed"
+            job["lines"].append(f"[killed: exceeded {timeout}s timeout]")
+        else:
+            job["status"] = "failed"
+
+
+def _start_build(key: str, cmd: list[str], timeout: int) -> dict:
+    """Start (or reuse a running) background build for `key`."""
+    with _BUILDS_LOCK:
+        job = _BUILDS.get(key)
+        if job and job["status"] == "running":
+            return job
+        job = {
+            "status": "running",
+            "lines": [],
+            "returncode": None,
+            "cmd": cmd,
+            "started": time.time(),
+            "finished": None,
+        }
+        _BUILDS[key] = job
+    threading.Thread(
+        target=_build_worker, args=(key, cmd, timeout), daemon=True
+    ).start()
+    return job
+
+
+def _job_snapshot(job: dict) -> tuple[str, str, int | None]:
+    with _BUILDS_LOCK:
+        return job["status"], "\n".join(job["lines"]), job["returncode"]
+
+
+def _await_or_handle(key: str, job: dict, label: str) -> str:
+    """Wait up to SYNC_WAIT_WINDOW for completion, else return a poll handle."""
+    deadline = time.time() + SYNC_WAIT_WINDOW
+    while time.time() < deadline:
+        status, _, _ = _job_snapshot(job)
+        if status != "running":
+            break
+        time.sleep(1)
+
+    status, output, rc = _job_snapshot(job)
+    if status == "running":
+        elapsed = int(time.time() - job["started"])
+        tail = "\n".join(output.splitlines()[-15:])
+        return (
+            f"{label} still running ({elapsed}s elapsed). The build continues "
+            f"in the background — poll it with "
+            f"esphome_build_status(device='{key}').\n\n"
+            f"--- output so far (tail) ---\n{tail}"
+        )
+    if rc != 0:
+        return f"Command failed (exit {rc}):\n{output}"
+    return output
+
+
+def _resolve_substitutions(value: str, subs: dict) -> str:
+    """Resolve ${var} / $var references in a string against the subs map.
+
+    Unknown references are left untouched (so the caller's '$' guards still
+    fire for genuinely unresolved names).
+    """
+    if not isinstance(value, str) or "$" not in value:
+        return value
+
+    def repl(match):
+        key = match.group(1) or match.group(2)
+        replacement = subs.get(key)
+        return str(replacement) if replacement is not None else match.group(0)
+
+    return re.sub(r"\$\{(\w+)\}|\$(\w+)", repl, value)
+
+
 def _parse_device_info(yaml_path: str) -> dict:
     """Parse basic device info from a YAML file."""
     try:
@@ -76,12 +203,27 @@ def _parse_device_info(yaml_path: str) -> dict:
                 return f"!secret {loader.construct_scalar(node)}"
 
             SecretLoader.add_constructor("!secret", secret_constructor)
-            data = yaml.load(f, Loader=SecretLoader)
 
-        esphome_section = data.get("esphome", {})
+            # ESPHome configs carry many custom tags (!lambda, !include,
+            # !extend, !remove, ...). We only need scalar metadata here, so
+            # map any unrecognised tag to None instead of crashing the load.
+            def _ignore_unknown(loader, tag_suffix, node):
+                return None
+
+            SecretLoader.add_multi_constructor("!", _ignore_unknown)
+            data = yaml.load(f, Loader=SecretLoader) or {}
+
+        subs = data.get("substitutions", {}) or {}
+        esphome_section = data.get("esphome", {}) or {}
+        name = _resolve_substitutions(
+            esphome_section.get("name", "unknown"), subs
+        )
+        friendly_name = _resolve_substitutions(
+            esphome_section.get("friendly_name", ""), subs
+        )
         return {
-            "name": esphome_section.get("name", "unknown"),
-            "friendly_name": esphome_section.get("friendly_name", ""),
+            "name": name,
+            "friendly_name": friendly_name,
             "file": os.path.basename(yaml_path),
         }
     except Exception as e:
@@ -142,19 +284,53 @@ def validate(device: str) -> str:
 
 
 def compile_device(device: str) -> str:
-    """Compile ESPHome firmware for a device."""
+    """Compile ESPHome firmware for a device (runs in the background)."""
     yaml_path = _device_yaml_path(device)
     if not os.path.isfile(yaml_path):
         return f"Device config not found: {yaml_path}"
-    return _run([ESPHOME_BIN, "compile", yaml_path], timeout=300)
+    key = os.path.basename(yaml_path)
+    job = _start_build(key, [ESPHOME_BIN, "compile", yaml_path], COMPILE_TIMEOUT)
+    return _await_or_handle(key, job, "Compile")
 
 
 def flash(device: str) -> str:
-    """OTA flash a device."""
+    """OTA flash a device (runs in the background)."""
     yaml_path = _device_yaml_path(device)
     if not os.path.isfile(yaml_path):
         return f"Device config not found: {yaml_path}"
-    return _run([ESPHOME_BIN, "run", yaml_path, "--no-logs"], timeout=600)
+    # Force OTA and run non-interactively. The add-on container may also expose
+    # USB serial adapters (/dev/ttyUSB*), which makes `esphome run` prompt for
+    # an upload target and crash with EOFError (no stdin under MCP). Target the
+    # device's mDNS name so the upload always goes Over-The-Air.
+    cmd = [ESPHOME_BIN, "run", yaml_path, "--no-logs"]
+    name = _parse_device_info(yaml_path).get("name", "")
+    if name and name not in ("unknown", "error") and "$" not in name:
+        cmd += ["--device", f"{name}.local"]
+    key = os.path.basename(yaml_path)
+    job = _start_build(key, cmd, FLASH_TIMEOUT)
+    return _await_or_handle(key, job, "Flash")
+
+
+def build_status(device: str) -> str:
+    """Return the status and output of the latest compile/flash for a device."""
+    key = os.path.basename(_resolve_device(device))
+    with _BUILDS_LOCK:
+        job = _BUILDS.get(key)
+        if job is None:
+            return f"No build found for '{key}'. Start one with esphome_compile."
+        status = job["status"]
+        output = "\n".join(job["lines"])
+        rc = job["returncode"]
+        started = job["started"]
+        finished = job["finished"]
+
+    if status == "running":
+        elapsed = int(time.time() - started)
+        tail = "\n".join(output.splitlines()[-30:])
+        return f"Build running ({elapsed}s elapsed).\n\n--- output (tail) ---\n{tail}"
+
+    duration = int((finished or time.time()) - started)
+    return f"Build {status} (exit {rc}, took {duration}s):\n{output}"
 
 
 def logs(device: str, num_lines: int = 50) -> str:

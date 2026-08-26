@@ -63,8 +63,9 @@ auth_token: "my-secret-token"
 | ---- | ----------- |
 | `esphome_list_devices` | List device configs with names |
 | `esphome_validate` | Validate a device YAML config |
-| `esphome_compile` | Compile firmware for a device |
-| `esphome_flash` | OTA flash a device |
+| `esphome_compile` | Compile firmware (background; returns inline or a poll handle) |
+| `esphome_flash` | OTA flash a device (background; returns inline or a poll handle) |
+| `esphome_build_status` | Poll the latest background compile/flash for a device |
 | `esphome_logs` | Get recent device logs (snapshot) |
 | `esphome_push_files` | Write YAML files to the config directory |
 | `esphome_pull_files` | Read YAML files from the config directory |
@@ -82,3 +83,11 @@ auth_token: "my-secret-token"
 
 The add-on listens on port **8099** (TCP). Make sure this port is
 accessible from your development machine.
+
+## Long-running builds
+
+Compiles (and the compile step of a flash) can take several minutes,
+especially the first build of a device. These run in the background: if a
+build finishes within ~45s the full output is returned immediately;
+otherwise the tool returns a handle and you poll `esphome_build_status`
+with the device name until it reports `done` or `failed`.

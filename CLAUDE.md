@@ -16,7 +16,7 @@ instead of SSH, getting direct access to ESPHome CLI and the
 - `esphome-mcp/` — The add-on
   - `config.yaml` — HA add-on manifest (name, version, ports, options)
   - `build.yaml` — Multi-arch Docker build config
-  - `Dockerfile` — Alpine + Python + ESPHome container
+  - `Dockerfile` — built on the official ESPHome (Debian/glibc) image
   - `run.sh` — Add-on entry point (reads config, starts server)
   - `requirements.txt` — Python dependencies (mcp, uvicorn, pyyaml)
   - `server/` — Python package
@@ -31,7 +31,10 @@ instead of SSH, getting direct access to ESPHome CLI and the
   configured, persisted to `/data/auth_token`
 - **Transport**: Streamable HTTP on port 8099 at `/mcp`
 - **Secrets**: `secrets.yaml` is explicitly rejected in push/pull tools
-- **ESPHome**: Installed at build time via pip in the Docker image
+- **ESPHome**: Provided by the official `ghcr.io/esphome/esphome`
+  (Debian/glibc) base image — required so the ESP cross-toolchains can run
+- **Builds**: compile/flash run as background jobs; poll with
+  `esphome_build_status` when a build outlives the sync window
 - **Config mapping**: HA Supervisor maps `/config/` into the container
 
 ## Building / Testing
@@ -40,7 +43,7 @@ The add-on is built by HA Supervisor when installed. For local testing:
 
 ```bash
 cd esphome-mcp
-docker build --build-arg BUILD_FROM=ghcr.io/home-assistant/amd64-base-python:3.12-alpine3.21 -t esphome-mcp .
+docker build --build-arg BUILD_FROM=ghcr.io/esphome/esphome:2026.4.5 -t esphome-mcp .
 docker run -p 8099:8099 -v /path/to/config:/config -e ESPHOME_MCP_AUTH_TOKEN=test esphome-mcp
 ```
 

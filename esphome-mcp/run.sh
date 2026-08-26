@@ -1,11 +1,17 @@
-#!/usr/bin/with-contenv bashio
+#!/usr/bin/env bash
 # ==============================================================================
-# ESPHome MCP Server — Add-on entry point
+# ESPHome MCP Server — Add-on entry point (glibc base, no bashio)
 # ==============================================================================
 set -e
 
-# Read auth token from add-on config
-AUTH_TOKEN="$(bashio::config 'auth_token')"
+OPTIONS_FILE="/data/options.json"
+
+# Read auth token from add-on config (replaces bashio::config)
+AUTH_TOKEN="$(python3 -c "import json,sys;
+try:
+    print(json.load(open('${OPTIONS_FILE}')).get('auth_token') or '')
+except Exception:
+    print('')" 2>/dev/null || true)"
 
 # Auto-generate token if not configured
 if [ -z "$AUTH_TOKEN" ] || [ "$AUTH_TOKEN" = "null" ]; then
@@ -13,19 +19,21 @@ if [ -z "$AUTH_TOKEN" ] || [ "$AUTH_TOKEN" = "null" ]; then
     if [ ! -f "$TOKEN_FILE" ]; then
         AUTH_TOKEN="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
         echo "$AUTH_TOKEN" > "$TOKEN_FILE"
-        bashio::log.info "Generated new auth token — retrieve it from the add-on logs"
     else
         AUTH_TOKEN="$(cat "$TOKEN_FILE")"
     fi
-    bashio::log.warning "==================================================="
-    bashio::log.warning "  MCP Auth Token: ${AUTH_TOKEN}"
-    bashio::log.warning "==================================================="
-    bashio::log.warning "Set ESPHOME_MCP_TOKEN in your Claude Code environment"
-    bashio::log.warning "to this value, or configure it in the add-on options."
+    echo "[WARN] ==================================================="
+    echo "[WARN]   MCP Auth Token: ${AUTH_TOKEN}"
+    echo "[WARN] ==================================================="
+    echo "[WARN] Set this token in your MCP client's Authorization header."
 fi
 
 export ESPHOME_MCP_AUTH_TOKEN="$AUTH_TOKEN"
 export ESPHOME_DIR="/config/esphome"
 
-bashio::log.info "Starting ESPHome MCP Server on port 8099..."
+# Reuse the PlatformIO toolchains/cache the official ESPHome Device Builder
+# add-on already downloaded under /config, avoiding a second download.
+export PLATFORMIO_CORE_DIR="/config/esphome/.esphome/.platformio"
+
+echo "[INFO] Starting ESPHome MCP Server on port ${MCP_PORT}..."
 exec python3 -m server.main
