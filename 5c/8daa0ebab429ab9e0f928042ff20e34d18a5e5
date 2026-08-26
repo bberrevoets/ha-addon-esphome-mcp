@@ -1,0 +1,32 @@
+esphome-mcp/server/tools.py
+  s_1269bd557c1f0a::t_a3162292736f4a 86,89-90
+  s_1269bd557c1f0a::t_db7e5bca3b87f5 55-71,73-85,87-88,91-95,492-493,495-497
+esphome-mcp/CHANGELOG.md
+  s_1269bd557c1f0a::t_6ea85397479389 35-45
+esphome-mcp/server/main.py
+  s_f536fd382c8d13::t_a9868af63a6444 59-60,74-75,99-100,115-116,130-131
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "5c8daa0ebab429ab9e0f928042ff20e34d18a5e5",
+  "prompts": {},
+  "sessions": {
+    "s_1269bd557c1f0a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d43a93b2-f5cb-4a9a-b405-33b0cb3f8fb3",
+        "model": "claude-fable-5"
+      },
+      "human_author": "B.N. Berrevoets <bert@berrevoets.net>"
+    },
+    "s_f536fd382c8d13": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "86af7f38-27ef-4547-9888-5e7f92fe7dcf",
+        "model": "claude-fable-5"
+      },
+      "human_author": "B.N. Berrevoets <bert@berrevoets.net>"
+    }
+  }
+}
