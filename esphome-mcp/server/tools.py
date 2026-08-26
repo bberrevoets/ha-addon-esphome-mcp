@@ -52,6 +52,15 @@ _BUILDS_LOCK = threading.Lock()
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+class DeviceLookupError(ValueError):
+    """The device argument does not resolve to exactly one config file."""
+
+
+def _rel(path: str) -> str:
+    """Path relative to ESPHOME_DIR with forward slashes (build keys, output)."""
+    return os.path.relpath(path, ESPHOME_DIR).replace(os.sep, "/")
+
+
 def _device_yaml_files() -> list[str]:
     """All device YAML paths: active configs first, then archive/ (secrets skipped)."""
     paths = [
@@ -80,6 +89,11 @@ def _resolve_device(device: str) -> str:
     configs (active and archived) are scanned for a matching name. Archived
     matches keep their ``archive/`` prefix so an active config with the same
     filename is never picked instead.
+
+    Matching prefers ``esphome.name`` over ``friendly_name`` and active
+    configs over archived ones (an archived copy of a device is normal).
+    If that still leaves more than one candidate, DeviceLookupError is
+    raised so the caller can pass the filename instead of guessing.
     """
     device = device.strip().replace("\\", "/")
     filename = device if device.endswith(".yaml") else f"{device}.yaml"
@@ -93,16 +107,27 @@ def _resolve_device(device: str) -> str:
     wanted = device.lower()
     if not wanted:
         return filename
-    for path in _device_yaml_files():
-        info = _parse_device_info(path)
-        if wanted in (info["name"].lower(), info["friendly_name"].lower()):
-            return os.path.relpath(path, ESPHOME_DIR).replace(os.sep, "/")
+    infos = [(path, _parse_device_info(path)) for path in _device_yaml_files()]
+    archive_dir = os.path.join(ESPHOME_DIR, "archive")
+    for field in ("name", "friendly_name"):
+        matches = [path for path, info in infos if info[field].lower() == wanted]
+        if not matches:
+            continue
+        active = [p for p in matches if os.path.dirname(p) != archive_dir]
+        candidates = active or matches
+        if len(candidates) > 1:
+            listed = ", ".join(_rel(p) for p in candidates)
+            raise DeviceLookupError(
+                f"Device '{device}' is ambiguous: {field} matches {listed}. "
+                "Pass the YAML filename instead."
+            )
+        return _rel(candidates[0])
     return filename
 
 
 def _build_key(yaml_path: str) -> str:
     """Registry key for background builds: the YAML path relative to ESPHOME_DIR."""
-    return os.path.relpath(yaml_path, ESPHOME_DIR).replace(os.sep, "/")
+    return _rel(yaml_path)
 
 
 def _device_yaml_path(device: str) -> str:

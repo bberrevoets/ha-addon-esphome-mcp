@@ -44,7 +44,9 @@ Author: *Bert Berrevoets, Claude Code*
   `friendly_name`) is now matched against the configs, active and archived.
   Archived matches keep their `archive/` path, so an active config with the
   same filename is never used instead, and background builds are keyed by
-  that path as well.
+  that path as well. `esphome.name` wins over `friendly_name` and active
+  configs over archived copies; a name that still matches several configs
+  is reported as ambiguous instead of silently picking the first one.
 
 ## [1.2.1] - 2026-08-26
 

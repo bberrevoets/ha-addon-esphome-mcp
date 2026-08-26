@@ -34,7 +34,12 @@ async def _in_thread(fn, *args, **kwargs):
     tool (ESPHome CLI calls, the compile/flash sync-wait window) would stall
     every other request on the server. Offload the work to a thread instead.
     """
-    return await anyio.to_thread.run_sync(functools.partial(fn, *args, **kwargs))
+    try:
+        return await anyio.to_thread.run_sync(functools.partial(fn, *args, **kwargs))
+    except tools.DeviceLookupError as e:
+        # Same shape as the "Device config not found" replies: a message the
+        # agent can act on (pass the filename), not a tool exception.
+        return str(e)
 
 
 # ---------------------------------------------------------------------------
