@@ -1,0 +1,23 @@
+CHANGELOG.md
+  s_f536fd382c8d13::t_63b5bb13465c89 3,5-7
+CLAUDE.md
+  s_f536fd382c8d13::t_63b5bb13465c89 27-29,71-72
+esphome-mcp/CHANGELOG.md
+  s_f536fd382c8d13::t_2c15a747c7635d 1-103
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "947f6ca73380c32806471bd18d1045a3e4b433fe",
+  "prompts": {},
+  "sessions": {
+    "s_f536fd382c8d13": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "86af7f38-27ef-4547-9888-5e7f92fe7dcf",
+        "model": "claude-fable-5"
+      },
+      "human_author": "B.N. Berrevoets <bert@berrevoets.net>"
+    }
+  }
+}
