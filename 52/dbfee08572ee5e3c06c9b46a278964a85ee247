@@ -1,0 +1,29 @@
+README.md
+  s_f536fd382c8d13::t_bd49d96dc18ed5 50,63-65
+esphome-mcp/server/tools.py
+  s_f536fd382c8d13::t_9c5a10ac4db5a1 35,102,144,148-150,159,167,186-195,325,336,340-342,361-367,371,373,375,378-382,488,493,499-505,507,512-538
+CHANGELOG.md
+  s_f536fd382c8d13::t_bd49d96dc18ed5 38-43
+esphome-mcp/server/main.py
+  s_f536fd382c8d13::t_bd49d96dc18ed5 77,82-89,96-97,99
+CLAUDE.md
+  s_f536fd382c8d13::t_bd49d96dc18ed5 43-45
+esphome-mcp/DOCS.md
+  s_f536fd382c8d13::t_bd49d96dc18ed5 67,103-104,108-110,113-115
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "52dbfee08572ee5e3c06c9b46a278964a85ee247",
+  "prompts": {},
+  "sessions": {
+    "s_f536fd382c8d13": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "86af7f38-27ef-4547-9888-5e7f92fe7dcf",
+        "model": "claude-fable-5"
+      },
+      "human_author": "B.N. Berrevoets <bert@berrevoets.net>"
+    }
+  }
+}
