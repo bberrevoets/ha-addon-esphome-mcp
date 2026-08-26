@@ -42,6 +42,9 @@ Author: *Bert Berrevoets, Claude Code*
   `esphome.name` differs from its filename (`co2-sensor1` in
   `co2-woonkamer.yaml`) failed with "Device config not found"; the name (or
   `friendly_name`) is now matched against the configs, active and archived.
+  Archived matches keep their `archive/` path, so an active config with the
+  same filename is never used instead, and background builds are keyed by
+  that path as well.
 
 ## [1.2.1] - 2026-08-26
 

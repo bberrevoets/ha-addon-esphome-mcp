@@ -44,7 +44,7 @@ OTA_ARGS = ["--device", "OTA"]
 
 _LOCAL_VERSION: str | None = None
 
-# Background build registry, keyed by device YAML filename.
+# Background build registry, keyed by device YAML path relative to ESPHOME_DIR.
 _BUILDS: dict[str, dict] = {}
 _BUILDS_LOCK = threading.Lock()
 
@@ -70,20 +70,25 @@ def _device_yaml_files() -> list[str]:
 
 
 def _resolve_device(device: str) -> str:
-    """Resolve a device argument to its YAML filename (without path).
+    """Resolve a device argument to its YAML path relative to ESPHOME_DIR.
 
     Accepts a filename (``co2-woonkamer.yaml``), a file stem
-    (``co2-woonkamer``) or the device's ``esphome.name`` / ``friendly_name``
-    as printed by esphome_list_devices (``co2-sensor1``). The filename does
-    not have to match the device name, so when ``<device>.yaml`` does not
-    exist the configs (active and archived) are scanned for a matching name.
+    (``co2-woonkamer``), an explicit archived path (``archive/old.yaml``) or
+    the device's ``esphome.name`` / ``friendly_name`` as printed by
+    esphome_list_devices (``co2-sensor1``). The filename does not have to
+    match the device name, so when ``<device>.yaml`` does not exist the
+    configs (active and archived) are scanned for a matching name. Archived
+    matches keep their ``archive/`` prefix so an active config with the same
+    filename is never picked instead.
     """
-    device = device.strip()
+    device = device.strip().replace("\\", "/")
     filename = device if device.endswith(".yaml") else f"{device}.yaml"
-    if os.path.isfile(os.path.join(ESPHOME_DIR, filename)) or os.path.isfile(
+    if os.path.isfile(os.path.join(ESPHOME_DIR, filename)):
+        return filename
+    if "/" not in filename and os.path.isfile(
         os.path.join(ESPHOME_DIR, "archive", filename)
     ):
-        return filename
+        return f"archive/{filename}"
 
     wanted = device.lower()
     if not wanted:
@@ -91,20 +96,18 @@ def _resolve_device(device: str) -> str:
     for path in _device_yaml_files():
         info = _parse_device_info(path)
         if wanted in (info["name"].lower(), info["friendly_name"].lower()):
-            return os.path.basename(path)
+            return os.path.relpath(path, ESPHOME_DIR).replace(os.sep, "/")
     return filename
 
 
+def _build_key(yaml_path: str) -> str:
+    """Registry key for background builds: the YAML path relative to ESPHOME_DIR."""
+    return os.path.relpath(yaml_path, ESPHOME_DIR).replace(os.sep, "/")
+
+
 def _device_yaml_path(device: str) -> str:
-    """Return the full path to a device YAML file."""
-    filename = _resolve_device(device)
-    path = os.path.join(ESPHOME_DIR, filename)
-    if os.path.isfile(path):
-        return path
-    archive_path = os.path.join(ESPHOME_DIR, "archive", filename)
-    if os.path.isfile(archive_path):
-        return archive_path
-    return path
+    """Return the full path to a device YAML file (see _resolve_device)."""
+    return os.path.join(ESPHOME_DIR, _resolve_device(device))
 
 
 def _run(cmd: list[str], timeout: int = 120, cwd: str | None = None) -> str:
@@ -524,7 +527,7 @@ def compile_device(device: str) -> str:
     yaml_path = _device_yaml_path(device)
     if not os.path.isfile(yaml_path):
         return f"Device config not found: {yaml_path}"
-    key = os.path.basename(yaml_path)
+    key = _build_key(yaml_path)
     job = _start_build(
         key,
         [ESPHOME_BIN, "compile", yaml_path],
@@ -552,7 +555,7 @@ def flash(device: str, allow_downgrade: bool = False) -> str:
     yaml_path = _device_yaml_path(device)
     if not os.path.isfile(yaml_path):
         return f"Device config not found: {yaml_path}"
-    key = os.path.basename(yaml_path)
+    key = _build_key(yaml_path)
 
     with _BUILDS_LOCK:
         running = _BUILDS.get(key)
@@ -584,7 +587,7 @@ def flash(device: str, allow_downgrade: bool = False) -> str:
 
 def build_status(device: str) -> str:
     """Return the status and output of the latest compile/flash for a device."""
-    key = os.path.basename(_resolve_device(device))
+    key = _resolve_device(device)
     with _BUILDS_LOCK:
         job = _BUILDS.get(key)
         if job is None:
