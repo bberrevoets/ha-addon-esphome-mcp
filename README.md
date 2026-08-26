@@ -46,13 +46,27 @@ Assistant add-on with direct filesystem access — no SSH required.
 | ---- | ----------- |
 | `esphome_list_devices` | List device configs with names |
 | `esphome_validate` | Validate a device YAML config |
-| `esphome_compile` | Compile firmware for a device |
-| `esphome_flash` | OTA flash a device |
-| `esphome_logs` | Get recent device logs |
+| `esphome_compile` | Compile firmware (background; inline result or poll handle) |
+| `esphome_flash` | OTA flash a device (background; refuses firmware downgrades unless allowed) |
+| `esphome_build_status` | Poll the latest background compile/flash |
+| `esphome_logs` | Get recent device logs (15 s network snapshot) |
 | `esphome_push_files` | Write YAML configs to HA |
 | `esphome_pull_files` | Read YAML configs from HA |
 | `esphome_push_fonts` | Write font files (base64) to HA |
 | `esphome_pull_fonts` | Read font files (base64) from HA |
+
+## ESPHome version
+
+The add-on compiles with the ESPHome version of its base image
+(`ghcr.io/esphome/esphome:<tag>` in `esphome-mcp/build.yaml`), bumped with
+every add-on release. `esphome_list_devices` prints that version, and
+`esphome_flash` first queries the device's running firmware: if it is
+**newer** than the add-on, the flash is refused (it would downgrade the
+device) unless `allow_downgrade=true` is passed.
+
+Flashing and logs always go over the network (`--device OTA`), resolved
+from the device config (`use_address`, static IP or `<name>.local`);
+serial upload is not supported.
 
 ## Architecture
 
