@@ -24,12 +24,18 @@ instead of SSH, getting direct access to ESPHome CLI and the
     - `tools.py` — All tool implementations (no SSH, local filesystem)
     - `auth.py` — Bearer token middleware
   - `DOCS.md` — Add-on documentation page shown in HA UI
+  - `CHANGELOG.md` — Add-on changelog; must live here (next to
+    `config.yaml`) or HA shows "No changelog found" on update. The
+    root `CHANGELOG.md` is only a pointer to this file
 
 ## Key Conventions
 
 - **Auth**: Bearer token in `Authorization` header; auto-generated if not
   configured, persisted to `/data/auth_token`
-- **Transport**: Streamable HTTP on port 8099 at `/mcp`
+- **Transport**: Streamable HTTP on port 8099 at `/mcp`; `GET /health`
+  (unauthenticated) backs the image `HEALTHCHECK`. Never use
+  `HEALTHCHECK NONE`: it leaves `Test: ["NONE"]` in the metadata and the
+  Supervisor then waits forever for a healthy event ("Starting")
 - **Secrets**: `secrets.yaml` is explicitly rejected in push/pull tools
 - **ESPHome**: Provided by the official `ghcr.io/esphome/esphome`
   (Debian/glibc) base image — required so the ESP cross-toolchains can run.
@@ -65,7 +71,8 @@ docker run -p 8099:8099 -v /path/to/config:/config -e ESPHOME_MCP_AUTH_TOKEN=tes
 1. Bump the base-image tag in `esphome-mcp/build.yaml` to the latest stable
    ESPHome (`ghcr.io/esphome/esphome:<tag>`, amd64 + arm64 are published).
 2. Bump `version:` in `esphome-mcp/config.yaml`.
-3. Add a CHANGELOG entry and update README/DOCS if tools changed.
+3. Add an entry to `esphome-mcp/CHANGELOG.md` (the copy HA displays) and
+   update README/DOCS if tools changed.
 4. Merge to `main` — HA picks up the new version from the repository.
    Users must reinstall (not just restart) when the base image changed.
 
