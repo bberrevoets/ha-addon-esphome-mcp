@@ -1,9 +1,11 @@
 """ESPHome MCP Server — FastMCP application with streamable HTTP transport."""
 
+import functools
 import json
 import logging
 import os
 
+import anyio
 import uvicorn
 from mcp.server.fastmcp import FastMCP
 
@@ -23,31 +25,42 @@ mcp = FastMCP(
 )
 
 
+async def _in_thread(fn, *args, **kwargs):
+    """Run a blocking tool implementation in a worker thread.
+
+    FastMCP calls plain ``def`` tools directly on the event loop, so a slow
+    tool (ESPHome CLI calls, the compile/flash sync-wait window) would stall
+    every other request on the server. Offload the work to a thread instead.
+    """
+    return await anyio.to_thread.run_sync(functools.partial(fn, *args, **kwargs))
+
+
 # ---------------------------------------------------------------------------
 # Register tools
 # ---------------------------------------------------------------------------
 @mcp.tool()
-def esphome_list_devices() -> str:
+async def esphome_list_devices() -> str:
     """List all available ESPHome device configurations.
 
     Scans YAML files in the ESPHome config directory,
-    returning device names and friendly names.
+    returning device names and friendly names. The header line shows the
+    ESPHome version this add-on compiles with.
     """
-    return tools.list_devices()
+    return await _in_thread(tools.list_devices)
 
 
 @mcp.tool()
-def esphome_validate(device: str) -> str:
+async def esphome_validate(device: str) -> str:
     """Validate an ESPHome device config.
 
     Args:
         device: Device name (e.g. 'statusdisplay') or YAML filename.
     """
-    return tools.validate(device)
+    return await _in_thread(tools.validate, device)
 
 
 @mcp.tool()
-def esphome_compile(device: str) -> str:
+async def esphome_compile(device: str) -> str:
     """Compile ESPHome firmware for a device.
 
     The build runs in the background. If it finishes quickly the full output
@@ -57,24 +70,32 @@ def esphome_compile(device: str) -> str:
     Args:
         device: Device name (e.g. 'statusdisplay') or YAML filename.
     """
-    return tools.compile_device(device)
+    return await _in_thread(tools.compile_device, device)
 
 
 @mcp.tool()
-def esphome_flash(device: str) -> str:
-    """OTA flash a device.
+async def esphome_flash(device: str) -> str:
+    """OTA flash a device (compile + upload over the network).
+
+    The upload target is always resolved from the device config
+    (`--device OTA`: use_address, static IP or <name>.local) — serial
+    upload is never used. Before flashing, the device's running firmware
+    version is queried over the native API; the output starts with
+    "ESPHome add-on: X | device firmware: Y" and a WARNING line when the
+    device runs a NEWER ESPHome than this add-on (flashing would downgrade
+    it). Read that line before proceeding.
 
     Like esphome_compile, this runs in the background and may return a
-    pollable handle for long uploads — check esphome_build_status(device).
+    pollable handle for long builds — check esphome_build_status(device).
 
     Args:
         device: Device name (e.g. 'statusdisplay') or YAML filename.
     """
-    return tools.flash(device)
+    return await _in_thread(tools.flash, device)
 
 
 @mcp.tool()
-def esphome_build_status(device: str) -> str:
+async def esphome_build_status(device: str) -> str:
     """Get the status/output of the latest background compile or flash.
 
     Use this to poll a build that esphome_compile / esphome_flash reported as
@@ -83,24 +104,26 @@ def esphome_build_status(device: str) -> str:
     Args:
         device: Device name (e.g. 'statusdisplay') or YAML filename.
     """
-    return tools.build_status(device)
+    return await _in_thread(tools.build_status, device)
 
 
 @mcp.tool()
-def esphome_logs(device: str, num_lines: int = 50) -> str:
+async def esphome_logs(device: str, num_lines: int = 50) -> str:
     """Get recent logs from an ESPHome device.
 
-    Captures a snapshot of logs (streaming is not supported in MCP tools).
+    Captures a ~15s snapshot of logs over the network (native API, resolved
+    from the device config via `--device OTA`); streaming and serial logs
+    are not supported in MCP tools.
 
     Args:
         device: Device name (e.g. 'statusdisplay') or YAML filename.
         num_lines: Number of log lines to return (default 50).
     """
-    return tools.logs(device, num_lines)
+    return await _in_thread(tools.logs, device, num_lines)
 
 
 @mcp.tool()
-def esphome_push_files(files: dict[str, str]) -> str:
+async def esphome_push_files(files: dict[str, str]) -> str:
     """Push YAML config files to the ESPHome directory on Home Assistant.
 
     Writes files to /config/esphome/. Rejects secrets.yaml.
@@ -109,11 +132,11 @@ def esphome_push_files(files: dict[str, str]) -> str:
         files: Dict mapping filename to YAML content.
                Use 'archive/name.yaml' for archived configs.
     """
-    return tools.push_files(files)
+    return await _in_thread(tools.push_files, files)
 
 
 @mcp.tool()
-def esphome_pull_files(filenames: list[str] | None = None) -> str:
+async def esphome_pull_files(filenames: list[str] | None = None) -> str:
     """Pull YAML config files from the ESPHome directory on Home Assistant.
 
     Returns file contents. Excludes secrets.yaml.
@@ -122,22 +145,22 @@ def esphome_pull_files(filenames: list[str] | None = None) -> str:
         filenames: Optional list of filenames to pull.
                    If omitted, returns all YAML files.
     """
-    result = tools.pull_files(filenames)
+    result = await _in_thread(tools.pull_files, filenames)
     return json.dumps(result, indent=2)
 
 
 @mcp.tool()
-def esphome_push_fonts(files: dict[str, str]) -> str:
+async def esphome_push_fonts(files: dict[str, str]) -> str:
     """Push font files to the ESPHome fonts directory on Home Assistant.
 
     Args:
         files: Dict mapping filename to base64-encoded file content.
     """
-    return tools.push_fonts(files)
+    return await _in_thread(tools.push_fonts, files)
 
 
 @mcp.tool()
-def esphome_pull_fonts(filenames: list[str] | None = None) -> str:
+async def esphome_pull_fonts(filenames: list[str] | None = None) -> str:
     """Pull font files from the ESPHome fonts directory on Home Assistant.
 
     Returns base64-encoded file contents.
@@ -146,7 +169,7 @@ def esphome_pull_fonts(filenames: list[str] | None = None) -> str:
         filenames: Optional list of font filenames to pull.
                    If omitted, returns all fonts.
     """
-    result = tools.pull_fonts(filenames)
+    result = await _in_thread(tools.pull_fonts, filenames)
     return json.dumps(result, indent=2)
 
 

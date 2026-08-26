@@ -3,6 +3,7 @@
 All tools operate locally on the Home Assistant filesystem — no SSH needed.
 """
 
+import asyncio
 import base64
 import glob
 import logging
@@ -28,6 +29,20 @@ SYNC_WAIT_WINDOW = 45
 # Hard server-side caps on background builds.
 COMPILE_TIMEOUT = 600
 FLASH_TIMEOUT = 900
+
+# Firmware version check (esphome_flash): native API port and budgets.
+ESPHOME_API_PORT = 6053
+CONFIG_DUMP_TIMEOUT = 60  # `esphome config --show-secrets`
+VERSION_CHECK_TIMEOUT = 8  # native API connect + device_info
+
+# Every ESPHome upload/log target is resolved from the device config by
+# ESPHome itself (use_address, static IP, <name>.local, MQTT IP lookup).
+# This is what the ESPHome Device Builder passes too; it never shows the
+# interactive serial/OTA chooser, which crashes with EOFError under MCP
+# (no stdin).
+OTA_ARGS = ["--device", "OTA"]
+
+_LOCAL_VERSION: str | None = None
 
 # Background build registry, keyed by device YAML filename.
 _BUILDS: dict[str, dict] = {}
@@ -84,8 +99,19 @@ def _run(cmd: list[str], timeout: int = 120, cwd: str | None = None) -> str:
 # Background builds (compile/flash) — long jobs run in a thread so a slow
 # build returns a pollable handle instead of hitting the MCP request timeout.
 # ---------------------------------------------------------------------------
-def _build_worker(key: str, cmd: list[str], timeout: int) -> None:
+def _build_worker(
+    key: str, cmd: list[str], timeout: int, pre_check=None
+) -> None:
     job = _BUILDS[key]
+    if pre_check is not None:
+        # Runs in this worker thread (never on the event loop). Its lines
+        # are kept separately so they stay visible above any output tail.
+        try:
+            preamble = list(pre_check())
+        except Exception as e:  # best effort, never block the build
+            preamble = [f"[pre-flight check skipped: {e}]"]
+        with _BUILDS_LOCK:
+            job["preamble"] = preamble
     try:
         proc = subprocess.Popen(
             cmd,
@@ -125,8 +151,15 @@ def _build_worker(key: str, cmd: list[str], timeout: int) -> None:
             job["status"] = "failed"
 
 
-def _start_build(key: str, cmd: list[str], timeout: int) -> dict:
-    """Start (or reuse a running) background build for `key`."""
+def _start_build(
+    key: str, cmd: list[str], timeout: int, pre_check=None
+) -> dict:
+    """Start (or reuse a running) background build for `key`.
+
+    `pre_check` is an optional callable returning lines to show above the
+    build output (e.g. the firmware version check); it runs in the worker
+    thread before the command starts.
+    """
     with _BUILDS_LOCK:
         job = _BUILDS.get(key)
         if job and job["status"] == "running":
@@ -134,6 +167,7 @@ def _start_build(key: str, cmd: list[str], timeout: int) -> dict:
         job = {
             "status": "running",
             "lines": [],
+            "preamble": [],
             "returncode": None,
             "cmd": cmd,
             "started": time.time(),
@@ -141,38 +175,205 @@ def _start_build(key: str, cmd: list[str], timeout: int) -> dict:
         }
         _BUILDS[key] = job
     threading.Thread(
-        target=_build_worker, args=(key, cmd, timeout), daemon=True
+        target=_build_worker,
+        args=(key, cmd, timeout, pre_check),
+        daemon=True,
     ).start()
     return job
 
 
-def _job_snapshot(job: dict) -> tuple[str, str, int | None]:
+def _job_snapshot(job: dict) -> tuple[str, str, int | None, str]:
     with _BUILDS_LOCK:
-        return job["status"], "\n".join(job["lines"]), job["returncode"]
+        return (
+            job["status"],
+            "\n".join(job["lines"]),
+            job["returncode"],
+            "\n".join(job["preamble"]),
+        )
+
+
+def _with_preamble(preamble: str, text: str) -> str:
+    return f"{preamble}\n\n{text}" if preamble else text
 
 
 def _await_or_handle(key: str, job: dict, label: str) -> str:
     """Wait up to SYNC_WAIT_WINDOW for completion, else return a poll handle."""
     deadline = time.time() + SYNC_WAIT_WINDOW
     while time.time() < deadline:
-        status, _, _ = _job_snapshot(job)
+        status, _, _, _ = _job_snapshot(job)
         if status != "running":
             break
         time.sleep(1)
 
-    status, output, rc = _job_snapshot(job)
+    status, output, rc, preamble = _job_snapshot(job)
     if status == "running":
         elapsed = int(time.time() - job["started"])
         tail = "\n".join(output.splitlines()[-15:])
-        return (
+        return _with_preamble(
+            preamble,
             f"{label} still running ({elapsed}s elapsed). The build continues "
             f"in the background — poll it with "
             f"esphome_build_status(device='{key}').\n\n"
-            f"--- output so far (tail) ---\n{tail}"
+            f"--- output so far (tail) ---\n{tail}",
         )
     if rc != 0:
-        return f"Command failed (exit {rc}):\n{output}"
-    return output
+        return _with_preamble(preamble, f"Command failed (exit {rc}):\n{output}")
+    return _with_preamble(preamble, output)
+
+
+# ---------------------------------------------------------------------------
+# YAML + version helpers
+# ---------------------------------------------------------------------------
+class _LenientLoader(yaml.SafeLoader):
+    """SafeLoader that tolerates ESPHome's custom tags.
+
+    `!secret name` becomes the literal string "!secret name"; every other
+    tag (!lambda, !include, !extend, !remove, ...) maps to None. Only scalar
+    metadata is read through this loader, never executed.
+    """
+
+
+def _secret_constructor(loader, node):
+    return f"!secret {loader.construct_scalar(node)}"
+
+
+def _ignore_unknown_tag(loader, tag_suffix, node):
+    return None
+
+
+_LenientLoader.add_constructor("!secret", _secret_constructor)
+_LenientLoader.add_multi_constructor("!", _ignore_unknown_tag)
+
+
+def _local_esphome_version() -> str:
+    """ESPHome version shipped in this image (== the base-image tag)."""
+    global _LOCAL_VERSION
+    if _LOCAL_VERSION is None:
+        try:
+            from esphome.const import __version__
+
+            _LOCAL_VERSION = str(__version__)
+        except Exception:
+            out = _run([ESPHOME_BIN, "version"], timeout=60)
+            match = re.search(r"Version:\s*(\S+)", out)
+            _LOCAL_VERSION = match.group(1) if match else "unknown"
+    return _LOCAL_VERSION
+
+
+def _version_tuple(version: str) -> tuple[int, ...] | None:
+    """Comparable tuple of the leading numeric groups (2026.8.1 -> (2026, 8, 1)).
+
+    Suffixes such as `-dev`, `b2` are ignored. Returns None if no number is found.
+    """
+    nums = re.findall(r"\d+", version or "")[:3]
+    if not nums:
+        return None
+    return tuple(int(n) for n in nums) + (0,) * (3 - len(nums))
+
+
+def _device_config(yaml_path: str) -> dict | None:
+    """Fully resolved config (packages, substitutions, secrets) or None.
+
+    Uses `esphome config --show-secrets` so the result is exactly what
+    ESPHome itself would use. Secrets stay inside this process.
+    """
+    try:
+        result = subprocess.run(
+            [ESPHOME_BIN, "config", yaml_path, "--show-secrets"],
+            capture_output=True,
+            text=True,
+            timeout=CONFIG_DUMP_TIMEOUT,
+            cwd=ESPHOME_DIR,
+        )
+    except (subprocess.TimeoutExpired, OSError) as e:
+        log.info("Config dump for %s failed: %s", yaml_path, e)
+        return None
+    if result.returncode != 0:
+        return None
+    try:
+        data = yaml.load(result.stdout, Loader=_LenientLoader)
+    except yaml.YAMLError as e:
+        log.info("Config dump for %s not parseable: %s", yaml_path, e)
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def _device_address(config: dict) -> str | None:
+    """Network address ESPHome would use for the device (like CORE.address)."""
+    for section in ("wifi", "ethernet"):
+        net = config.get(section)
+        if not isinstance(net, dict):
+            continue
+        if net.get("use_address"):
+            return str(net["use_address"])
+        manual = net.get("manual_ip")
+        if isinstance(manual, dict) and manual.get("static_ip"):
+            return str(manual["static_ip"])
+    name = (config.get("esphome") or {}).get("name")
+    return f"{name}.local" if name else None
+
+
+def _device_firmware_version(yaml_path: str) -> str | None:
+    """Ask the running device for its ESPHome version via the native API.
+
+    Best effort: returns None (never raises) when the device has no `api:`,
+    is unreachable, or the check exceeds VERSION_CHECK_TIMEOUT.
+    """
+    config = _device_config(yaml_path)
+    if not config or "api" not in config:
+        return None
+    address = _device_address(config)
+    if not address:
+        return None
+    api = config.get("api") or {}
+    encryption = api.get("encryption") if isinstance(api, dict) else None
+    key = encryption.get("key") if isinstance(encryption, dict) else None
+
+    try:
+        from aioesphomeapi import APIClient
+    except ImportError:
+        return None
+
+    async def fetch() -> str | None:
+        client = APIClient(
+            address,
+            ESPHOME_API_PORT,
+            None,
+            noise_psk=str(key) if key else None,
+            client_info="esphome-mcp",
+        )
+        await client.connect(login=False)
+        try:
+            info = await client.device_info()
+            return info.esphome_version or None
+        finally:
+            await client.disconnect(force=True)
+
+    try:
+        return asyncio.run(asyncio.wait_for(fetch(), VERSION_CHECK_TIMEOUT))
+    except Exception as e:  # noqa: BLE001 - any failure just skips the check
+        log.info(
+            "Firmware version check for %s skipped: %s: %s",
+            address,
+            type(e).__name__,
+            e,
+        )
+        return None
+
+
+def _flash_preamble(yaml_path: str) -> list[str]:
+    """Lines shown above flash output: versions + downgrade warning (#8)."""
+    local = _local_esphome_version()
+    device = _device_firmware_version(yaml_path)
+    lines = [f"ESPHome add-on: {local} | device firmware: {device or 'unknown'}"]
+    local_t, device_t = _version_tuple(local), _version_tuple(device or "")
+    if local_t and device_t and device_t > local_t:
+        lines.append(
+            f"WARNING: the device runs a NEWER ESPHome ({device}) than this "
+            f"add-on ({local}) — flashing will DOWNGRADE its firmware. Update "
+            "the add-on first, or flash from the newer ESPHome Device Builder."
+        )
+    return lines
 
 
 def _resolve_substitutions(value: str, subs: dict) -> str:
@@ -196,22 +397,7 @@ def _parse_device_info(yaml_path: str) -> dict:
     """Parse basic device info from a YAML file."""
     try:
         with open(yaml_path, encoding="utf-8") as f:
-            class SecretLoader(yaml.SafeLoader):
-                pass
-
-            def secret_constructor(loader, node):
-                return f"!secret {loader.construct_scalar(node)}"
-
-            SecretLoader.add_constructor("!secret", secret_constructor)
-
-            # ESPHome configs carry many custom tags (!lambda, !include,
-            # !extend, !remove, ...). We only need scalar metadata here, so
-            # map any unrecognised tag to None instead of crashing the load.
-            def _ignore_unknown(loader, tag_suffix, node):
-                return None
-
-            SecretLoader.add_multi_constructor("!", _ignore_unknown)
-            data = yaml.load(f, Loader=SecretLoader) or {}
+            data = yaml.load(f, Loader=_LenientLoader) or {}
 
         subs = data.get("substitutions", {}) or {}
         esphome_section = data.get("esphome", {}) or {}
@@ -264,7 +450,7 @@ def list_devices() -> str:
     if not devices:
         return "No device configurations found."
 
-    lines = ["ESPHome Devices:", ""]
+    lines = [f"ESPHome Devices (add-on ESPHome {_local_esphome_version()}):", ""]
     for d in devices:
         name = d["name"]
         friendly = f' ("{d["friendly_name"]}")' if d.get("friendly_name") else ""
@@ -289,25 +475,33 @@ def compile_device(device: str) -> str:
     if not os.path.isfile(yaml_path):
         return f"Device config not found: {yaml_path}"
     key = os.path.basename(yaml_path)
-    job = _start_build(key, [ESPHOME_BIN, "compile", yaml_path], COMPILE_TIMEOUT)
+    job = _start_build(
+        key,
+        [ESPHOME_BIN, "compile", yaml_path],
+        COMPILE_TIMEOUT,
+        pre_check=lambda: [f"ESPHome add-on: {_local_esphome_version()}"],
+    )
     return _await_or_handle(key, job, "Compile")
 
 
 def flash(device: str) -> str:
-    """OTA flash a device (runs in the background)."""
+    """OTA flash a device (runs in the background).
+
+    `--device OTA` makes ESPHome resolve the upload target from the config
+    (use_address / static IP / <name>.local) exactly like the ESPHome Device
+    Builder does, so it never falls into the interactive serial/OTA chooser
+    (EOFError under MCP). Before the build starts, the device's running
+    firmware version is queried and a downgrade warning is emitted if the
+    device runs a newer ESPHome than this add-on.
+    """
     yaml_path = _device_yaml_path(device)
     if not os.path.isfile(yaml_path):
         return f"Device config not found: {yaml_path}"
-    # Force OTA and run non-interactively. The add-on container may also expose
-    # USB serial adapters (/dev/ttyUSB*), which makes `esphome run` prompt for
-    # an upload target and crash with EOFError (no stdin under MCP). Target the
-    # device's mDNS name so the upload always goes Over-The-Air.
-    cmd = [ESPHOME_BIN, "run", yaml_path, "--no-logs"]
-    name = _parse_device_info(yaml_path).get("name", "")
-    if name and name not in ("unknown", "error") and "$" not in name:
-        cmd += ["--device", f"{name}.local"]
+    cmd = [ESPHOME_BIN, "run", yaml_path, "--no-logs", *OTA_ARGS]
     key = os.path.basename(yaml_path)
-    job = _start_build(key, cmd, FLASH_TIMEOUT)
+    job = _start_build(
+        key, cmd, FLASH_TIMEOUT, pre_check=lambda: _flash_preamble(yaml_path)
+    )
     return _await_or_handle(key, job, "Flash")
 
 
@@ -320,6 +514,7 @@ def build_status(device: str) -> str:
             return f"No build found for '{key}'. Start one with esphome_compile."
         status = job["status"]
         output = "\n".join(job["lines"])
+        preamble = "\n".join(job["preamble"])
         rc = job["returncode"]
         started = job["started"]
         finished = job["finished"]
@@ -327,21 +522,61 @@ def build_status(device: str) -> str:
     if status == "running":
         elapsed = int(time.time() - started)
         tail = "\n".join(output.splitlines()[-30:])
-        return f"Build running ({elapsed}s elapsed).\n\n--- output (tail) ---\n{tail}"
+        return _with_preamble(
+            preamble,
+            f"Build running ({elapsed}s elapsed).\n\n--- output (tail) ---\n{tail}",
+        )
 
     duration = int((finished or time.time()) - started)
-    return f"Build {status} (exit {rc}, took {duration}s):\n{output}"
+    return _with_preamble(
+        preamble, f"Build {status} (exit {rc}, took {duration}s):\n{output}"
+    )
+
+
+LOG_SNAPSHOT_SECONDS = 15
 
 
 def logs(device: str, num_lines: int = 50) -> str:
-    """Get recent logs from an ESPHome device."""
+    """Get a snapshot of recent logs from an ESPHome device.
+
+    Logs are streamed over the network (`--device OTA` -> native API or
+    web_server, resolved from the config) for LOG_SNAPSHOT_SECONDS, then the
+    stream is cut with `timeout`. Exit 124 from `timeout` is the normal end of
+    a snapshot, not an error.
+    """
     yaml_path = _device_yaml_path(device)
     if not os.path.isfile(yaml_path):
         return f"Device config not found: {yaml_path}"
-    output = _run(
-        ["timeout", "15", ESPHOME_BIN, "logs", yaml_path],
-        timeout=30,
-    )
+    cmd = [
+        "timeout",
+        str(LOG_SNAPSHOT_SECONDS),
+        ESPHOME_BIN,
+        "logs",
+        yaml_path,
+        *OTA_ARGS,
+    ]
+    log.info("Running: %s", " ".join(cmd))
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=LOG_SNAPSHOT_SECONDS + 15,
+            cwd=ESPHOME_DIR,
+        )
+    except subprocess.TimeoutExpired:
+        return "Log snapshot did not finish in time"
+    except FileNotFoundError as e:
+        return f"Command not found: {e}"
+
+    output = result.stdout
+    if result.stderr:
+        output += "\n" + result.stderr
+    output = output.strip()
+    if result.returncode not in (0, 124):
+        return f"Command failed (exit {result.returncode}):\n{output}"
+    if not output:
+        return f"No log output received in {LOG_SNAPSHOT_SECONDS}s."
     lines = output.splitlines()
     if len(lines) > num_lines:
         lines = lines[-num_lines:]

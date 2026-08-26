@@ -64,9 +64,9 @@ auth_token: "my-secret-token"
 | `esphome_list_devices` | List device configs with names |
 | `esphome_validate` | Validate a device YAML config |
 | `esphome_compile` | Compile firmware (background; returns inline or a poll handle) |
-| `esphome_flash` | OTA flash a device (background; returns inline or a poll handle) |
+| `esphome_flash` | OTA flash a device (background; warns on firmware downgrade) |
 | `esphome_build_status` | Poll the latest background compile/flash for a device |
-| `esphome_logs` | Get recent device logs (snapshot) |
+| `esphome_logs` | Get recent device logs (15 s network snapshot) |
 | `esphome_push_files` | Write YAML files to the config directory |
 | `esphome_pull_files` | Read YAML files from the config directory |
 | `esphome_push_fonts` | Write font files (base64-encoded) |
@@ -91,3 +91,38 @@ especially the first build of a device. These run in the background: if a
 build finishes within ~45s the full output is returned immediately;
 otherwise the tool returns a handle and you poll `esphome_build_status`
 with the device name until it reports `done` or `failed`.
+
+## ESPHome version and firmware downgrades
+
+The add-on compiles with the ESPHome version of its base image — the tag
+pinned in `build.yaml` (shown by `esphome_list_devices` and in the add-on
+log at start). Each add-on release bumps that tag; update the add-on to get
+a newer ESPHome.
+
+Because the caller is usually an AI agent, `esphome_flash` first asks the
+device for its running firmware version over the native API and starts its
+output with:
+
+```text
+ESPHome add-on: 2026.8.1 | device firmware: 2026.9.0
+WARNING: the device runs a NEWER ESPHome (2026.9.0) than this add-on (2026.8.1) — flashing will DOWNGRADE its firmware. ...
+```
+
+The check is best effort (device without `api:`, unreachable, or slow →
+`device firmware: unknown`) and never blocks the flash.
+
+## Network targets (OTA only)
+
+`esphome_flash` and `esphome_logs` always pass `--device OTA`, like the
+ESPHome Device Builder. ESPHome resolves the target from the device config:
+`wifi.use_address`, a static `manual_ip`, or `<name>.local` via mDNS. The
+device therefore needs `api:` (and `ota:` for flashing) and must be
+reachable from the Home Assistant host. Serial (USB) upload/logging is not
+supported by this add-on.
+
+## Build cache
+
+Toolchains, PlatformIO packages and build files are stored in the add-on's
+private `/data` volume (`/data/cache`, `/data/build`). They survive restarts
+and updates but are removed when the add-on is uninstalled, so the first
+compile after a reinstall downloads the toolchains again.
