@@ -32,7 +32,10 @@ instead of SSH, getting direct access to ESPHome CLI and the
 
 - **Auth**: Bearer token in `Authorization` header; auto-generated if not
   configured, persisted to `/data/auth_token`
-- **Transport**: Streamable HTTP on port 8099 at `/mcp`
+- **Transport**: Streamable HTTP on port 8099 at `/mcp`; `GET /health`
+  (unauthenticated) backs the image `HEALTHCHECK`. Never use
+  `HEALTHCHECK NONE`: it leaves `Test: ["NONE"]` in the metadata and the
+  Supervisor then waits forever for a healthy event ("Starting")
 - **Secrets**: `secrets.yaml` is explicitly rejected in push/pull tools
 - **ESPHome**: Provided by the official `ghcr.io/esphome/esphome`
   (Debian/glibc) base image — required so the ESP cross-toolchains can run.

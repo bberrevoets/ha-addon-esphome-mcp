@@ -8,6 +8,8 @@ import os
 import anyio
 import uvicorn
 from mcp.server.fastmcp import FastMCP
+from starlette.requests import Request
+from starlette.responses import PlainTextResponse
 
 from . import tools
 from .auth import BearerAuthMiddleware
@@ -182,6 +184,18 @@ async def esphome_pull_fonts(filenames: list[str] | None = None) -> str:
 # ASGI app with auth middleware
 # ---------------------------------------------------------------------------
 app = mcp.streamable_http_app()
+
+
+async def health(_: Request) -> PlainTextResponse:
+    """Liveness probe for the image HEALTHCHECK / HA Supervisor.
+
+    Unauthenticated (BearerAuthMiddleware exempts /health) and deliberately
+    trivial: it only proves the ASGI server is up and serving.
+    """
+    return PlainTextResponse("ok")
+
+
+app.add_route("/health", health, methods=["GET"])
 app.add_middleware(BearerAuthMiddleware)
 
 

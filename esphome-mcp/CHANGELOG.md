@@ -8,6 +8,20 @@ All notable changes to this project will be documented in this file.
 - **Olaf van der Kaa** — glibc base image, background builds (PR #6)
 - **Claude Code** — AI-assisted development
 
+## [1.2.1] - 2026-08-26
+
+### Fixed
+
+Author: *Bert Berrevoets, Claude Code*
+
+- Add-on stuck in "Starting" in the Home Assistant UI. `HEALTHCHECK NONE`
+  (1.1.x) leaves a `Test: ["NONE"]` healthcheck in the image metadata, so the
+  Supervisor waited forever for a `healthy` event. The server now exposes
+  `GET /health` (no auth) and the image defines a real `HEALTHCHECK` against
+  it, so the add-on reports *Started* and the watchdog can act on it.
+- Changelog moved to `esphome-mcp/CHANGELOG.md` so Home Assistant shows it in
+  the update dialog (previously "No changelog found").
+
 ## [1.2.0] - 2026-08-26
 
 ### Changed
