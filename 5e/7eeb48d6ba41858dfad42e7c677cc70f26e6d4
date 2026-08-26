@@ -1,0 +1,19 @@
+esphome-mcp/server/tools.py
+  s_f536fd382c8d13::t_d2703efc1db880 296-301,311-314,316
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "5e7eeb48d6ba41858dfad42e7c677cc70f26e6d4",
+  "prompts": {},
+  "sessions": {
+    "s_f536fd382c8d13": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "86af7f38-27ef-4547-9888-5e7f92fe7dcf",
+        "model": "claude-fable-5"
+      },
+      "human_author": "B.N. Berrevoets <bert@berrevoets.net>"
+    }
+  }
+}
