@@ -88,8 +88,9 @@ def _resolve_device(device: str) -> str:
     match the device name.
 
     An explicit ``*.yaml`` argument always selects that file (active first,
-    then ``archive/``). A bare name is looked up per tier — active configs
-    first, archived copies only if nothing active matches — and within a
+    then ``archive/``). Any other argument — a stem, ``archive/<stem>`` or a
+    device name, even one containing ``/`` — is looked up per tier: active
+    configs first, archived copies only if nothing active matches; within a
     tier a file stem wins over ``esphome.name``, which wins over
     ``friendly_name``. Archived matches keep their ``archive/`` prefix. If a
     bare name matches several configs of the same tier (two devices with the
@@ -99,7 +100,7 @@ def _resolve_device(device: str) -> str:
     """
     device = device.strip().replace("\\", "/")
     filename = device if device.endswith(".yaml") else f"{device}.yaml"
-    if device.endswith(".yaml") or "/" in device or not device:
+    if device.endswith(".yaml") or not device:
         if os.path.isfile(os.path.join(ESPHOME_DIR, filename)):
             return filename
         if "/" not in filename and os.path.isfile(
