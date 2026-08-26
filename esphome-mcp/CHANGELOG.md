@@ -32,6 +32,17 @@ Author: *Bert Berrevoets, Claude Code*
 - Documentation: how to test unreleased builds (dev add-on script, or a
   branch added as a second repository with `#<branch>`).
 
+### Fixed
+
+Author: *Bert Berrevoets, Claude Code*
+
+- Per-device tools (`esphome_validate`, `esphome_compile`, `esphome_flash`,
+  `esphome_logs`, `esphome_build_status`) accept the device **name** shown by
+  `esphome_list_devices`, not only the YAML filename. A device whose
+  `esphome.name` differs from its filename (`co2-sensor1` in
+  `co2-woonkamer.yaml`) failed with "Device config not found"; the name (or
+  `friendly_name`) is now matched against the configs, active and archived.
+
 ## [1.2.1] - 2026-08-26
 
 ### Fixed

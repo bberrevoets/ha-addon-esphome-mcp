@@ -52,11 +52,47 @@ _BUILDS_LOCK = threading.Lock()
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+def _device_yaml_files() -> list[str]:
+    """All device YAML paths: active configs first, then archive/ (secrets skipped)."""
+    paths = [
+        p
+        for p in sorted(glob.glob(os.path.join(ESPHOME_DIR, "*.yaml")))
+        if not _is_forbidden(p)
+    ]
+    archive_dir = os.path.join(ESPHOME_DIR, "archive")
+    if os.path.isdir(archive_dir):
+        paths += [
+            p
+            for p in sorted(glob.glob(os.path.join(archive_dir, "*.yaml")))
+            if not _is_forbidden(p)
+        ]
+    return paths
+
+
 def _resolve_device(device: str) -> str:
-    """Resolve a device name to its YAML filename (without path)."""
-    if not device.endswith(".yaml"):
-        device = f"{device}.yaml"
-    return device
+    """Resolve a device argument to its YAML filename (without path).
+
+    Accepts a filename (``co2-woonkamer.yaml``), a file stem
+    (``co2-woonkamer``) or the device's ``esphome.name`` / ``friendly_name``
+    as printed by esphome_list_devices (``co2-sensor1``). The filename does
+    not have to match the device name, so when ``<device>.yaml`` does not
+    exist the configs (active and archived) are scanned for a matching name.
+    """
+    device = device.strip()
+    filename = device if device.endswith(".yaml") else f"{device}.yaml"
+    if os.path.isfile(os.path.join(ESPHOME_DIR, filename)) or os.path.isfile(
+        os.path.join(ESPHOME_DIR, "archive", filename)
+    ):
+        return filename
+
+    wanted = device.lower()
+    if not wanted:
+        return filename
+    for path in _device_yaml_files():
+        info = _parse_device_info(path)
+        if wanted in (info["name"].lower(), info["friendly_name"].lower()):
+            return os.path.basename(path)
+    return filename
 
 
 def _device_yaml_path(device: str) -> str:
@@ -453,20 +489,13 @@ def _is_forbidden(filename: str) -> bool:
 def list_devices() -> str:
     """List all available ESPHome device configurations."""
     devices = []
-
-    for path in sorted(glob.glob(os.path.join(ESPHOME_DIR, "*.yaml"))):
-        if _is_forbidden(path):
-            continue
-        info = _parse_device_info(path)
-        info["status"] = "active"
-        devices.append(info)
-
     archive_dir = os.path.join(ESPHOME_DIR, "archive")
-    if os.path.isdir(archive_dir):
-        for path in sorted(glob.glob(os.path.join(archive_dir, "*.yaml"))):
-            info = _parse_device_info(path)
-            info["status"] = "archived"
-            devices.append(info)
+    for path in _device_yaml_files():
+        info = _parse_device_info(path)
+        info["status"] = (
+            "archived" if os.path.dirname(path) == archive_dir else "active"
+        )
+        devices.append(info)
 
     if not devices:
         return "No device configurations found."
