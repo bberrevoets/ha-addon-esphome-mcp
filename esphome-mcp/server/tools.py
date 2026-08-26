@@ -323,6 +323,12 @@ def _device_firmware_version(yaml_path: str) -> str | None:
     encryption = api.get("encryption") if isinstance(api, dict) else None
     key = encryption.get("key") if isinstance(encryption, dict) else None
     password = api.get("password") if isinstance(api, dict) else None
+    port = ESPHOME_API_PORT
+    if isinstance(api, dict) and api.get("port"):
+        try:
+            port = int(api["port"])
+        except (TypeError, ValueError):
+            pass
 
     try:
         from aioesphomeapi import APIClient
@@ -332,7 +338,7 @@ def _device_firmware_version(yaml_path: str) -> str | None:
     async def fetch() -> str | None:
         client = APIClient(
             address,
-            ESPHOME_API_PORT,
+            port,
             str(password) if password else None,
             noise_psk=str(key) if key else None,
             client_info="esphome-mcp",
