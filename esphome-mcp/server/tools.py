@@ -293,7 +293,12 @@ def _device_config(yaml_path: str) -> dict | None:
 
 
 def _device_address(config: dict) -> str | None:
-    """Network address ESPHome would use for the device (like CORE.address)."""
+    """Network address ESPHome would use for the device (like CORE.address).
+
+    Precedence mirrors the wifi/ethernet components: `use_address`, then a
+    static `manual_ip`, then `<name><domain>` (domain defaults to `.local`).
+    """
+    domain = ".local"
     for section in ("wifi", "ethernet"):
         net = config.get(section)
         if not isinstance(net, dict):
@@ -303,8 +308,12 @@ def _device_address(config: dict) -> str | None:
         manual = net.get("manual_ip")
         if isinstance(manual, dict) and manual.get("static_ip"):
             return str(manual["static_ip"])
+        if net.get("domain"):
+            domain = str(net["domain"])
+            if not domain.startswith("."):
+                domain = "." + domain
     name = (config.get("esphome") or {}).get("name")
-    return f"{name}.local" if name else None
+    return f"{name}{domain}" if name else None
 
 
 def _device_firmware_version(yaml_path: str) -> str | None:
