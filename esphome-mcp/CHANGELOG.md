@@ -8,6 +8,49 @@ All notable changes to this project will be documented in this file.
 - **Olaf van der Kaa** — glibc base image, background builds (PR #6)
 - **Claude Code** — AI-assisted development
 
+## [1.2.2] - 2026-08-26
+
+Base image unchanged (`ghcr.io/esphome/esphome:2026.8.1`, still the latest
+stable); updating restarts the add-on, no reinstall needed.
+
+### Added
+
+Author: *Bert Berrevoets, Claude Code*
+
+- Add-on icon and logo (`icon.png`, `logo.png`) shown in the Home Assistant
+  add-on store and Apps overview instead of the generic placeholder. SVG
+  sources are in the add-on folder; `scripts/render-icons.py` regenerates
+  the PNGs.
+- `scripts/deploy-dev.sh`: deploy the working tree to a Home Assistant host
+  as a local "ESPHome MCP Server (dev)" add-on (port 8098) to test changes
+  before releasing them.
+
+### Changed
+
+Author: *Bert Berrevoets, Claude Code*
+
+- Documentation: how to test unreleased builds (dev add-on script, or a
+  branch added as a second repository with `#<branch>`).
+
+### Fixed
+
+Author: *Bert Berrevoets, Claude Code*
+
+- Per-device tools (`esphome_validate`, `esphome_compile`, `esphome_flash`,
+  `esphome_logs`, `esphome_build_status`) accept the device **name** shown by
+  `esphome_list_devices`, not only the YAML filename. A device whose
+  `esphome.name` differs from its filename (`co2-sensor1` in
+  `co2-woonkamer.yaml`) failed with "Device config not found"; the name (or
+  `friendly_name`) is now matched against the configs, active and archived.
+  Archived matches keep their `archive/` path, so an active config with the
+  same filename is never used instead, and background builds are keyed by
+  that path as well. `esphome.name` wins over `friendly_name` and active
+  configs over archived copies; a name that still matches several configs
+  (or is both a filename stem and another device's name) is reported as
+  ambiguous instead of silently picking one — pass the `.yaml` filename.
+- A config with an empty `friendly_name:` or a numeric `name:` no longer
+  shows as `ERROR` in `esphome_list_devices` or breaks name lookups.
+
 ## [1.2.1] - 2026-08-26
 
 ### Fixed

@@ -123,6 +123,19 @@ device therefore needs `api:` (and `ota:` for flashing) and must be
 reachable from the Home Assistant host. Serial (USB) upload/logging is not
 supported by this add-on.
 
+## Trying a pre-release build
+
+To test a branch before it is released, add it as a second repository in
+**Settings > Add-ons > Add-on Store > ... > Repositories**:
+
+```text
+https://github.com/bberrevoets/ha-addon-esphome-mcp#<branch>
+```
+
+It installs as a separate add-on next to the released one. Change its host
+port under **Network** (for example 8098) before starting, and remove the
+repository again when you are done.
+
 ## Build cache
 
 Toolchains, PlatformIO packages and build files are stored in the add-on's

@@ -44,7 +44,7 @@ OTA_ARGS = ["--device", "OTA"]
 
 _LOCAL_VERSION: str | None = None
 
-# Background build registry, keyed by device YAML filename.
+# Background build registry, keyed by device YAML path relative to ESPHOME_DIR.
 _BUILDS: dict[str, dict] = {}
 _BUILDS_LOCK = threading.Lock()
 
@@ -52,23 +52,109 @@ _BUILDS_LOCK = threading.Lock()
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+class DeviceLookupError(ValueError):
+    """The device argument does not resolve to exactly one config file."""
+
+
+def _rel(path: str) -> str:
+    """Path relative to ESPHOME_DIR with forward slashes (build keys, output)."""
+    return os.path.relpath(path, ESPHOME_DIR).replace(os.sep, "/")
+
+
+def _device_yaml_files() -> list[str]:
+    """All device YAML paths: active configs first, then archive/ (secrets skipped)."""
+    paths = [
+        p
+        for p in sorted(glob.glob(os.path.join(ESPHOME_DIR, "*.yaml")))
+        if not _is_forbidden(p)
+    ]
+    archive_dir = os.path.join(ESPHOME_DIR, "archive")
+    if os.path.isdir(archive_dir):
+        paths += [
+            p
+            for p in sorted(glob.glob(os.path.join(archive_dir, "*.yaml")))
+            if not _is_forbidden(p)
+        ]
+    return paths
+
+
 def _resolve_device(device: str) -> str:
-    """Resolve a device name to its YAML filename (without path)."""
-    if not device.endswith(".yaml"):
-        device = f"{device}.yaml"
-    return device
+    """Resolve a device argument to its YAML path relative to ESPHOME_DIR.
+
+    Accepts a filename (``co2-woonkamer.yaml``), a file stem
+    (``co2-woonkamer``), an explicit archived path (``archive/old.yaml``) or
+    the device's ``esphome.name`` / ``friendly_name`` as printed by
+    esphome_list_devices (``co2-sensor1``). The filename does not have to
+    match the device name.
+
+    An explicit ``*.yaml`` argument always selects that file (active first,
+    then ``archive/``). Any other argument — a stem, ``archive/<stem>`` or a
+    device name, even one containing ``/`` — is looked up per tier: active
+    configs first, archived copies only if nothing active matches; within a
+    tier a file stem wins over ``esphome.name``, which wins over
+    ``friendly_name``. Archived matches keep their ``archive/`` prefix. If a
+    bare name matches several configs of the same tier (two devices with the
+    same name, or a file stem that is also another device's name),
+    DeviceLookupError is raised so the caller passes the filename instead of
+    the tools guessing.
+    """
+    device = device.strip().replace("\\", "/")
+    filename = device if device.endswith(".yaml") else f"{device}.yaml"
+    if device.endswith(".yaml") or not device:
+        if os.path.isfile(os.path.join(ESPHOME_DIR, filename)):
+            return filename
+        if "/" not in filename and os.path.isfile(
+            os.path.join(ESPHOME_DIR, "archive", filename)
+        ):
+            return f"archive/{filename}"
+        return filename
+
+    wanted = device.lower()
+    archive_dir = os.path.join(ESPHOME_DIR, "archive")
+    infos = [(path, _parse_device_info(path)) for path in _device_yaml_files()]
+    tiers = (
+        [(p, i) for p, i in infos if os.path.dirname(p) != archive_dir],
+        [(p, i) for p, i in infos if os.path.dirname(p) == archive_dir],
+    )
+    for tier_dir, tier in zip((ESPHOME_DIR, archive_dir), tiers):
+        file_hit = os.path.join(tier_dir, filename)
+        if not os.path.isfile(file_hit):
+            file_hit = None
+        for field in ("name", "friendly_name"):
+            hits = [
+                p
+                for p, i in tier
+                if _as_text(i.get(field)).lower() == wanted and p != file_hit
+            ]
+            if file_hit and hits:
+                listed = ", ".join(_rel(p) for p in [file_hit, *hits])
+                raise DeviceLookupError(
+                    f"Device '{device}' is ambiguous: it is the filename of "
+                    f"{_rel(file_hit)} and the {field} of "
+                    f"{', '.join(_rel(p) for p in hits)}. Pass the YAML filename "
+                    f"instead ({listed})."
+                )
+            if len(hits) > 1:
+                listed = ", ".join(_rel(p) for p in hits)
+                raise DeviceLookupError(
+                    f"Device '{device}' is ambiguous: {field} matches {listed}. "
+                    "Pass the YAML filename instead."
+                )
+            if hits and not file_hit:
+                return _rel(hits[0])
+        if file_hit:
+            return _rel(file_hit)
+    return filename
+
+
+def _build_key(yaml_path: str) -> str:
+    """Registry key for background builds: the YAML path relative to ESPHOME_DIR."""
+    return _rel(yaml_path)
 
 
 def _device_yaml_path(device: str) -> str:
-    """Return the full path to a device YAML file."""
-    filename = _resolve_device(device)
-    path = os.path.join(ESPHOME_DIR, filename)
-    if os.path.isfile(path):
-        return path
-    archive_path = os.path.join(ESPHOME_DIR, "archive", filename)
-    if os.path.isfile(archive_path):
-        return archive_path
-    return path
+    """Return the full path to a device YAML file (see _resolve_device)."""
+    return os.path.join(ESPHOME_DIR, _resolve_device(device))
 
 
 def _run(cmd: list[str], timeout: int = 120, cwd: str | None = None) -> str:
@@ -414,6 +500,11 @@ def _resolve_substitutions(value: str, subs: dict) -> str:
     return re.sub(r"\$\{(\w+)\}|\$(\w+)", repl, value)
 
 
+def _as_text(value) -> str:
+    """YAML scalar -> str ('' for None) for name/friendly_name fields."""
+    return "" if value is None else str(value).strip()
+
+
 def _parse_device_info(yaml_path: str) -> dict:
     """Parse basic device info from a YAML file."""
     try:
@@ -422,11 +513,15 @@ def _parse_device_info(yaml_path: str) -> dict:
 
         subs = data.get("substitutions", {}) or {}
         esphome_section = data.get("esphome", {}) or {}
+        if not isinstance(esphome_section, dict):
+            esphome_section = {}
+        # `friendly_name:` without a value loads as None and a numeric name
+        # as int; normalise to text so callers can compare/lower() safely.
         name = _resolve_substitutions(
-            esphome_section.get("name", "unknown"), subs
+            _as_text(esphome_section.get("name")) or "unknown", subs
         )
         friendly_name = _resolve_substitutions(
-            esphome_section.get("friendly_name", ""), subs
+            _as_text(esphome_section.get("friendly_name")), subs
         )
         return {
             "name": name,
@@ -453,20 +548,13 @@ def _is_forbidden(filename: str) -> bool:
 def list_devices() -> str:
     """List all available ESPHome device configurations."""
     devices = []
-
-    for path in sorted(glob.glob(os.path.join(ESPHOME_DIR, "*.yaml"))):
-        if _is_forbidden(path):
-            continue
-        info = _parse_device_info(path)
-        info["status"] = "active"
-        devices.append(info)
-
     archive_dir = os.path.join(ESPHOME_DIR, "archive")
-    if os.path.isdir(archive_dir):
-        for path in sorted(glob.glob(os.path.join(archive_dir, "*.yaml"))):
-            info = _parse_device_info(path)
-            info["status"] = "archived"
-            devices.append(info)
+    for path in _device_yaml_files():
+        info = _parse_device_info(path)
+        info["status"] = (
+            "archived" if os.path.dirname(path) == archive_dir else "active"
+        )
+        devices.append(info)
 
     if not devices:
         return "No device configurations found."
@@ -495,7 +583,7 @@ def compile_device(device: str) -> str:
     yaml_path = _device_yaml_path(device)
     if not os.path.isfile(yaml_path):
         return f"Device config not found: {yaml_path}"
-    key = os.path.basename(yaml_path)
+    key = _build_key(yaml_path)
     job = _start_build(
         key,
         [ESPHOME_BIN, "compile", yaml_path],
@@ -523,7 +611,7 @@ def flash(device: str, allow_downgrade: bool = False) -> str:
     yaml_path = _device_yaml_path(device)
     if not os.path.isfile(yaml_path):
         return f"Device config not found: {yaml_path}"
-    key = os.path.basename(yaml_path)
+    key = _build_key(yaml_path)
 
     with _BUILDS_LOCK:
         running = _BUILDS.get(key)
@@ -555,7 +643,7 @@ def flash(device: str, allow_downgrade: bool = False) -> str:
 
 def build_status(device: str) -> str:
     """Return the status and output of the latest compile/flash for a device."""
-    key = os.path.basename(_resolve_device(device))
+    key = _resolve_device(device)
     with _BUILDS_LOCK:
         job = _BUILDS.get(key)
         if job is None:

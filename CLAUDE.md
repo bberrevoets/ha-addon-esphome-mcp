@@ -13,6 +13,9 @@ instead of SSH, getting direct access to ESPHome CLI and the
 ## Repository Structure
 
 - `repository.yaml` — HA add-on repository metadata
+- `scripts/deploy-dev.sh` — push the working tree to the HA host as a local
+  dev add-on (see Building / Testing)
+- `scripts/render-icons.py` — rasterize `icon.svg`/`logo.svg` to PNG
 - `esphome-mcp/` — The add-on
   - `config.yaml` — HA add-on manifest (name, version, ports, options)
   - `build.yaml` — Multi-arch Docker build config
@@ -24,6 +27,8 @@ instead of SSH, getting direct access to ESPHome CLI and the
     - `tools.py` — All tool implementations (no SSH, local filesystem)
     - `auth.py` — Bearer token middleware
   - `DOCS.md` — Add-on documentation page shown in HA UI
+  - `icon.svg` / `icon.png`, `logo.svg` / `logo.png` — presentation files
+    (HA reads the PNGs; the SVGs are the sources)
   - `CHANGELOG.md` — Add-on changelog; must live here (next to
     `config.yaml`) or HA shows "No changelog found" on update. The
     root `CHANGELOG.md` is only a pointer to this file
@@ -55,16 +60,46 @@ instead of SSH, getting direct access to ESPHome CLI and the
   and PlatformIO caches under `/data` (`ESPHOME_DATA_DIR`, `PLATFORMIO_*_DIR`).
   Never use `/config/esphome/.esphome`; the Device Builder add-on wipes it
 - **Config mapping**: HA Supervisor maps `/config/` into the container
+- **Presentation files**: `icon.png` (128×128) and `logo.png` (250×100) next
+  to `config.yaml`. Edit the SVG sources and regenerate with
+  `python scripts/render-icons.py` (Playwright Chromium + Pillow). Commit the
+  PNGs as plain git files — **never Git LFS**: the Supervisor clones with plain
+  git and would get an LFS pointer file instead of an image
 
 ## Building / Testing
 
-The add-on is built by HA Supervisor when installed. For local testing:
+The add-on is built by HA Supervisor when installed. Three ways to test a
+change before it is released, cheapest first. None of them publishes
+anything: users' HA instances only follow `main`, so feature branches are
+always safe to push.
 
-```bash
-cd esphome-mcp
-docker build --build-arg BUILD_FROM=ghcr.io/esphome/esphome:2026.8.1 -t esphome-mcp .
-docker run -p 8099:8099 -v /path/to/config:/config -e ESPHOME_MCP_AUTH_TOKEN=test esphome-mcp
-```
+1. **Local Docker build** (server smoke test on the dev machine):
+
+   ```bash
+   cd esphome-mcp
+   docker build --build-arg BUILD_FROM=ghcr.io/esphome/esphome:2026.8.1 -t esphome-mcp .
+   docker run -p 8099:8099 -v /path/to/config:/config -e ESPHOME_MCP_AUTH_TOKEN=test esphome-mcp
+   ```
+
+2. **Dev add-on on the real HA host** — `bash scripts/deploy-dev.sh`. Copies
+   the working tree (uncommitted changes included) to `/addons/esphome-mcp`
+   over SSH (`homebox` alias; `HA_SSH_HOST` overrides), renamed
+   "ESPHome MCP Server (dev)" with version `<version>-dev.<sha>[.dirty]` on
+   host port 8098 (`HA_DEV_PORT`), then runs `ha store reload` + `ha apps`
+   install/update/rebuild + start. It runs side by side with the store
+   version (8099) and shows up under *Local apps* as `local_esphome-mcp`.
+   Flags: `--sync-only` (files only, no build), `--logs`, `--remove`. The
+   Supervisor builds on the host: the first build takes a few minutes, later
+   ones hit the Docker layer cache (`requirements.txt` is copied before
+   `server/`). `/data` (token, caches) survives rebuilds.
+
+3. **Branch as a second repository** (no SSH needed; also for other
+   testers): push the branch, then add
+   `https://github.com/bberrevoets/ha-addon-esphome-mcp#<branch>` as another
+   repository in HA. It installs as a separate add-on (own repository hash)
+   — change its host port under *Network* before starting. Each iteration:
+   push → *Check for updates* → Update/Rebuild. Remove the repository when
+   done.
 
 ## Releasing
 

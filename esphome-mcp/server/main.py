@@ -34,7 +34,12 @@ async def _in_thread(fn, *args, **kwargs):
     tool (ESPHome CLI calls, the compile/flash sync-wait window) would stall
     every other request on the server. Offload the work to a thread instead.
     """
-    return await anyio.to_thread.run_sync(functools.partial(fn, *args, **kwargs))
+    try:
+        return await anyio.to_thread.run_sync(functools.partial(fn, *args, **kwargs))
+    except tools.DeviceLookupError as e:
+        # Same shape as the "Device config not found" replies: a message the
+        # agent can act on (pass the filename), not a tool exception.
+        return str(e)
 
 
 # ---------------------------------------------------------------------------
@@ -56,7 +61,8 @@ async def esphome_validate(device: str) -> str:
     """Validate an ESPHome device config.
 
     Args:
-        device: Device name (e.g. 'statusdisplay') or YAML filename.
+        device: Device name as shown by esphome_list_devices (e.g.
+            'statusdisplay'), or the YAML filename / stem.
     """
     return await _in_thread(tools.validate, device)
 
@@ -70,7 +76,8 @@ async def esphome_compile(device: str) -> str:
     handle is returned — check progress with esphome_build_status(device).
 
     Args:
-        device: Device name (e.g. 'statusdisplay') or YAML filename.
+        device: Device name as shown by esphome_list_devices (e.g.
+            'statusdisplay'), or the YAML filename / stem.
     """
     return await _in_thread(tools.compile_device, device)
 
@@ -94,7 +101,8 @@ async def esphome_flash(device: str, allow_downgrade: bool = False) -> str:
     pollable handle for long builds — check esphome_build_status(device).
 
     Args:
-        device: Device name (e.g. 'statusdisplay') or YAML filename.
+        device: Device name as shown by esphome_list_devices (e.g.
+            'statusdisplay'), or the YAML filename / stem.
         allow_downgrade: Proceed even if the device runs a newer ESPHome
             than this add-on (default False).
     """
@@ -109,7 +117,8 @@ async def esphome_build_status(device: str) -> str:
     still running. Returns running progress (tail) or the final result.
 
     Args:
-        device: Device name (e.g. 'statusdisplay') or YAML filename.
+        device: Device name as shown by esphome_list_devices (e.g.
+            'statusdisplay'), or the YAML filename / stem.
     """
     return await _in_thread(tools.build_status, device)
 
@@ -123,7 +132,8 @@ async def esphome_logs(device: str, num_lines: int = 50) -> str:
     are not supported in MCP tools.
 
     Args:
-        device: Device name (e.g. 'statusdisplay') or YAML filename.
+        device: Device name as shown by esphome_list_devices (e.g.
+            'statusdisplay'), or the YAML filename / stem.
         num_lines: Number of log lines to return (default 50).
     """
     return await _in_thread(tools.logs, device, num_lines)
