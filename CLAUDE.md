@@ -40,8 +40,9 @@ instead of SSH, getting direct access to ESPHome CLI and the
 - **OTA only**: flash/logs pass `--device OTA` (never `<name>.local`, never
   interactive) so ESPHome resolves the target from the config
 - **Version check**: `flash()` queries the device over the native API
-  (`aioesphomeapi`, key from `esphome config --show-secrets`) and warns on
-  downgrade; best effort, runs inside the build worker thread
+  (`aioesphomeapi`, key/password from `esphome config --show-secrets`)
+  *before* starting the build and refuses a downgrade unless
+  `allow_downgrade=true`; best effort (unreachable → proceeds)
 - **Threads**: FastMCP runs sync tools on the event loop, so every tool in
   `main.py` is `async` and offloads to `anyio.to_thread.run_sync`
 - **Runtime env**: `run.sh` mirrors the official ESPHome add-on — data, build

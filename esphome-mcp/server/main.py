@@ -74,24 +74,29 @@ async def esphome_compile(device: str) -> str:
 
 
 @mcp.tool()
-async def esphome_flash(device: str) -> str:
+async def esphome_flash(device: str, allow_downgrade: bool = False) -> str:
     """OTA flash a device (compile + upload over the network).
 
     The upload target is always resolved from the device config
     (`--device OTA`: use_address, static IP or <name>.local) — serial
-    upload is never used. Before flashing, the device's running firmware
-    version is queried over the native API; the output starts with
-    "ESPHome add-on: X | device firmware: Y" and a WARNING line when the
-    device runs a NEWER ESPHome than this add-on (flashing would downgrade
-    it). Read that line before proceeding.
+    upload is never used.
+
+    Before anything is built, the device's running firmware version is
+    queried over the native API. The output starts with
+    "ESPHome add-on: X | device firmware: Y". If the device runs a NEWER
+    ESPHome than this add-on, the flash is REFUSED (nothing is started) and
+    a WARNING explains the downgrade; call again with allow_downgrade=true
+    only if the user explicitly wants to downgrade the device.
 
     Like esphome_compile, this runs in the background and may return a
     pollable handle for long builds — check esphome_build_status(device).
 
     Args:
         device: Device name (e.g. 'statusdisplay') or YAML filename.
+        allow_downgrade: Proceed even if the device runs a newer ESPHome
+            than this add-on (default False).
     """
-    return await _in_thread(tools.flash, device)
+    return await _in_thread(tools.flash, device, allow_downgrade)
 
 
 @mcp.tool()

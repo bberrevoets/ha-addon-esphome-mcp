@@ -64,7 +64,7 @@ auth_token: "my-secret-token"
 | `esphome_list_devices` | List device configs with names |
 | `esphome_validate` | Validate a device YAML config |
 | `esphome_compile` | Compile firmware (background; returns inline or a poll handle) |
-| `esphome_flash` | OTA flash a device (background; warns on firmware downgrade) |
+| `esphome_flash` | OTA flash a device (background; refuses firmware downgrades unless allowed) |
 | `esphome_build_status` | Poll the latest background compile/flash for a device |
 | `esphome_logs` | Get recent device logs (15 s network snapshot) |
 | `esphome_push_files` | Write YAML files to the config directory |
@@ -100,16 +100,19 @@ log at start). Each add-on release bumps that tag; update the add-on to get
 a newer ESPHome.
 
 Because the caller is usually an AI agent, `esphome_flash` first asks the
-device for its running firmware version over the native API and starts its
-output with:
+device for its running firmware version over the native API (before
+anything is compiled) and starts its output with:
 
 ```text
 ESPHome add-on: 2026.8.1 | device firmware: 2026.9.0
-WARNING: the device runs a NEWER ESPHome (2026.9.0) than this add-on (2026.8.1) — flashing will DOWNGRADE its firmware. ...
+WARNING: the device runs a NEWER ESPHome (2026.9.0) than this add-on (2026.8.1) — flashing would DOWNGRADE its firmware. ...
+
+Flash NOT started. To downgrade the device anyway, call esphome_flash again with allow_downgrade=true.
 ```
 
-The check is best effort (device without `api:`, unreachable, or slow →
-`device firmware: unknown`) and never blocks the flash.
+A newer device is **not** flashed unless `allow_downgrade=true` is passed.
+The check is best effort: a device without `api:`, unreachable, or slow to
+answer shows `device firmware: unknown` and the flash proceeds.
 
 ## Network targets (OTA only)
 

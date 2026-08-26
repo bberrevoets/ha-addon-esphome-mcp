@@ -32,7 +32,7 @@ FLASH_TIMEOUT = 900
 
 # Firmware version check (esphome_flash): native API port and budgets.
 ESPHOME_API_PORT = 6053
-CONFIG_DUMP_TIMEOUT = 60  # `esphome config --show-secrets`
+CONFIG_DUMP_TIMEOUT = 30  # `esphome config --show-secrets`
 VERSION_CHECK_TIMEOUT = 8  # native API connect + device_info
 
 # Every ESPHome upload/log target is resolved from the device config by
@@ -99,19 +99,8 @@ def _run(cmd: list[str], timeout: int = 120, cwd: str | None = None) -> str:
 # Background builds (compile/flash) — long jobs run in a thread so a slow
 # build returns a pollable handle instead of hitting the MCP request timeout.
 # ---------------------------------------------------------------------------
-def _build_worker(
-    key: str, cmd: list[str], timeout: int, pre_check=None
-) -> None:
+def _build_worker(key: str, cmd: list[str], timeout: int) -> None:
     job = _BUILDS[key]
-    if pre_check is not None:
-        # Runs in this worker thread (never on the event loop). Its lines
-        # are kept separately so they stay visible above any output tail.
-        try:
-            preamble = list(pre_check())
-        except Exception as e:  # best effort, never block the build
-            preamble = [f"[pre-flight check skipped: {e}]"]
-        with _BUILDS_LOCK:
-            job["preamble"] = preamble
     try:
         proc = subprocess.Popen(
             cmd,
@@ -152,13 +141,13 @@ def _build_worker(
 
 
 def _start_build(
-    key: str, cmd: list[str], timeout: int, pre_check=None
+    key: str, cmd: list[str], timeout: int, preamble: list[str] | None = None
 ) -> dict:
     """Start (or reuse a running) background build for `key`.
 
-    `pre_check` is an optional callable returning lines to show above the
-    build output (e.g. the firmware version check); it runs in the worker
-    thread before the command starts.
+    `preamble` lines (e.g. the firmware version check result) are kept
+    separately from the command output so they stay visible above any
+    output tail, both inline and in esphome_build_status.
     """
     with _BUILDS_LOCK:
         job = _BUILDS.get(key)
@@ -167,7 +156,7 @@ def _start_build(
         job = {
             "status": "running",
             "lines": [],
-            "preamble": [],
+            "preamble": list(preamble or []),
             "returncode": None,
             "cmd": cmd,
             "started": time.time(),
@@ -175,9 +164,7 @@ def _start_build(
         }
         _BUILDS[key] = job
     threading.Thread(
-        target=_build_worker,
-        args=(key, cmd, timeout, pre_check),
-        daemon=True,
+        target=_build_worker, args=(key, cmd, timeout), daemon=True
     ).start()
     return job
 
@@ -196,9 +183,16 @@ def _with_preamble(preamble: str, text: str) -> str:
     return f"{preamble}\n\n{text}" if preamble else text
 
 
-def _await_or_handle(key: str, job: dict, label: str) -> str:
-    """Wait up to SYNC_WAIT_WINDOW for completion, else return a poll handle."""
-    deadline = time.time() + SYNC_WAIT_WINDOW
+def _await_or_handle(
+    key: str, job: dict, label: str, deadline: float | None = None
+) -> str:
+    """Wait until `deadline` (default: SYNC_WAIT_WINDOW from now) for
+    completion, else return a poll handle. Callers that did work before
+    starting the job pass their own deadline so the whole tool call stays
+    within the sync window.
+    """
+    if deadline is None:
+        deadline = time.time() + SYNC_WAIT_WINDOW
     while time.time() < deadline:
         status, _, _, _ = _job_snapshot(job)
         if status != "running":
@@ -328,6 +322,7 @@ def _device_firmware_version(yaml_path: str) -> str | None:
     api = config.get("api") or {}
     encryption = api.get("encryption") if isinstance(api, dict) else None
     key = encryption.get("key") if isinstance(encryption, dict) else None
+    password = api.get("password") if isinstance(api, dict) else None
 
     try:
         from aioesphomeapi import APIClient
@@ -338,11 +333,13 @@ def _device_firmware_version(yaml_path: str) -> str | None:
         client = APIClient(
             address,
             ESPHOME_API_PORT,
-            None,
+            str(password) if password else None,
             noise_psk=str(key) if key else None,
             client_info="esphome-mcp",
         )
-        await client.connect(login=False)
+        # Full connect incl. authentication (noise PSK and/or legacy API
+        # password), like Home Assistant does, before asking for device_info.
+        await client.connect(login=True)
         try:
             info = await client.device_info()
             return info.esphome_version or None
@@ -361,19 +358,28 @@ def _device_firmware_version(yaml_path: str) -> str | None:
         return None
 
 
-def _flash_preamble(yaml_path: str) -> list[str]:
-    """Lines shown above flash output: versions + downgrade warning (#8)."""
+def _firmware_check(yaml_path: str) -> tuple[str, str | None, str | None]:
+    """Pre-flight for flash (#8): (add-on version, device version, warning).
+
+    `warning` is set when the device runs a NEWER ESPHome than this add-on,
+    i.e. flashing would downgrade it. Best effort: an unreachable device
+    yields (local, None, None).
+    """
     local = _local_esphome_version()
     device = _device_firmware_version(yaml_path)
-    lines = [f"ESPHome add-on: {local} | device firmware: {device or 'unknown'}"]
     local_t, device_t = _version_tuple(local), _version_tuple(device or "")
+    warning = None
     if local_t and device_t and device_t > local_t:
-        lines.append(
+        warning = (
             f"WARNING: the device runs a NEWER ESPHome ({device}) than this "
-            f"add-on ({local}) — flashing will DOWNGRADE its firmware. Update "
+            f"add-on ({local}) — flashing would DOWNGRADE its firmware. Update "
             "the add-on first, or flash from the newer ESPHome Device Builder."
         )
-    return lines
+    return local, device, warning
+
+
+def _version_line(local: str, device: str | None) -> str:
+    return f"ESPHome add-on: {local} | device firmware: {device or 'unknown'}"
 
 
 def _resolve_substitutions(value: str, subs: dict) -> str:
@@ -479,30 +485,57 @@ def compile_device(device: str) -> str:
         key,
         [ESPHOME_BIN, "compile", yaml_path],
         COMPILE_TIMEOUT,
-        pre_check=lambda: [f"ESPHome add-on: {_local_esphome_version()}"],
+        preamble=[f"ESPHome add-on: {_local_esphome_version()}"],
     )
     return _await_or_handle(key, job, "Compile")
 
 
-def flash(device: str) -> str:
+def flash(device: str, allow_downgrade: bool = False) -> str:
     """OTA flash a device (runs in the background).
 
     `--device OTA` makes ESPHome resolve the upload target from the config
     (use_address / static IP / <name>.local) exactly like the ESPHome Device
     Builder does, so it never falls into the interactive serial/OTA chooser
-    (EOFError under MCP). Before the build starts, the device's running
-    firmware version is queried and a downgrade warning is emitted if the
-    device runs a newer ESPHome than this add-on.
+    (EOFError under MCP).
+
+    Before anything is built, the device's running firmware version is
+    queried over the native API. If it is NEWER than this add-on's ESPHome,
+    the flash is refused (nothing starts) unless `allow_downgrade` is True.
+    The version line and any warning are kept as the job preamble so they
+    also show up in esphome_build_status.
     """
+    started = time.time()
     yaml_path = _device_yaml_path(device)
     if not os.path.isfile(yaml_path):
         return f"Device config not found: {yaml_path}"
-    cmd = [ESPHOME_BIN, "run", yaml_path, "--no-logs", *OTA_ARGS]
     key = os.path.basename(yaml_path)
-    job = _start_build(
-        key, cmd, FLASH_TIMEOUT, pre_check=lambda: _flash_preamble(yaml_path)
-    )
-    return _await_or_handle(key, job, "Flash")
+
+    with _BUILDS_LOCK:
+        running = _BUILDS.get(key)
+        if running is not None and running["status"] != "running":
+            running = None
+    if running is not None:
+        # A build for this device is already in flight; don't re-check.
+        return _await_or_handle(key, running, "Flash", started + SYNC_WAIT_WINDOW)
+
+    local, device_version, warning = _firmware_check(yaml_path)
+    preamble = [_version_line(local, device_version)]
+    if warning:
+        if not allow_downgrade:
+            return "\n".join(
+                preamble
+                + [
+                    warning,
+                    "",
+                    "Flash NOT started. To downgrade the device anyway, call "
+                    "esphome_flash again with allow_downgrade=true.",
+                ]
+            )
+        preamble += [warning, "Proceeding anyway (allow_downgrade=true)."]
+
+    cmd = [ESPHOME_BIN, "run", yaml_path, "--no-logs", *OTA_ARGS]
+    job = _start_build(key, cmd, FLASH_TIMEOUT, preamble=preamble)
+    return _await_or_handle(key, job, "Flash", started + SYNC_WAIT_WINDOW)
 
 
 def build_status(device: str) -> str:

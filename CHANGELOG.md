@@ -35,11 +35,12 @@ Author: *Bert Berrevoets, Claude Code*
 
 Author: *Bert Berrevoets, Claude Code*
 
-- Firmware version check on `esphome_flash`: the device's running ESPHome
-  version is queried over the native API and the output starts with
-  `ESPHome add-on: X | device firmware: Y`, followed by a `WARNING` line when
-  the device runs a newer ESPHome than the add-on (flashing would downgrade
-  it) (#8).
+- Firmware version check on `esphome_flash`: before anything is built, the
+  device's running ESPHome version is queried over the native API and the
+  output starts with `ESPHome add-on: X | device firmware: Y`. A device that
+  runs a newer ESPHome than the add-on is **not** flashed (a `WARNING`
+  explains the downgrade) unless the new `allow_downgrade=true` argument is
+  passed (#8).
 - `esphome_list_devices` and compile output show the add-on's ESPHome version.
 - `.markdownlint.json` (180-char lines, sibling-only duplicate headings).
 

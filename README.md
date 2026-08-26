@@ -47,7 +47,7 @@ Assistant add-on with direct filesystem access — no SSH required.
 | `esphome_list_devices` | List device configs with names |
 | `esphome_validate` | Validate a device YAML config |
 | `esphome_compile` | Compile firmware (background; inline result or poll handle) |
-| `esphome_flash` | OTA flash a device (background; warns on firmware downgrade) |
+| `esphome_flash` | OTA flash a device (background; refuses firmware downgrades unless allowed) |
 | `esphome_build_status` | Poll the latest background compile/flash |
 | `esphome_logs` | Get recent device logs (15 s network snapshot) |
 | `esphome_push_files` | Write YAML configs to HA |
@@ -60,8 +60,9 @@ Assistant add-on with direct filesystem access — no SSH required.
 The add-on compiles with the ESPHome version of its base image
 (`ghcr.io/esphome/esphome:<tag>` in `esphome-mcp/build.yaml`), bumped with
 every add-on release. `esphome_list_devices` prints that version, and
-`esphome_flash` first queries the device's running firmware and warns
-when it is **newer** than the add-on — flashing would downgrade it.
+`esphome_flash` first queries the device's running firmware: if it is
+**newer** than the add-on, the flash is refused (it would downgrade the
+device) unless `allow_downgrade=true` is passed.
 
 Flashing and logs always go over the network (`--device OTA`), resolved
 from the device config (`use_address`, static IP or `<name>.local`);
