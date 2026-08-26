@@ -1,0 +1,21 @@
+esphome-mcp/server/tools.py
+  s_1269bd557c1f0a::t_3e3f173498d039 88-98,102-108,113-141
+esphome-mcp/CHANGELOG.md
+  s_1269bd557c1f0a::t_3e3f173498d039 49-50
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "eed3e4ee34918877895d72023988be349965a6e3",
+  "prompts": {},
+  "sessions": {
+    "s_1269bd557c1f0a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d43a93b2-f5cb-4a9a-b405-33b0cb3f8fb3",
+        "model": "claude-fable-5"
+      },
+      "human_author": "B.N. Berrevoets <bert@berrevoets.net>"
+    }
+  }
+}
