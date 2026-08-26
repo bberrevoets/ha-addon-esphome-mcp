@@ -120,7 +120,11 @@ def _resolve_device(device: str) -> str:
         if not os.path.isfile(file_hit):
             file_hit = None
         for field in ("name", "friendly_name"):
-            hits = [p for p, i in tier if i[field].lower() == wanted and p != file_hit]
+            hits = [
+                p
+                for p, i in tier
+                if _as_text(i.get(field)).lower() == wanted and p != file_hit
+            ]
             if file_hit and hits:
                 listed = ", ".join(_rel(p) for p in [file_hit, *hits])
                 raise DeviceLookupError(
@@ -495,6 +499,11 @@ def _resolve_substitutions(value: str, subs: dict) -> str:
     return re.sub(r"\$\{(\w+)\}|\$(\w+)", repl, value)
 
 
+def _as_text(value) -> str:
+    """YAML scalar -> str ('' for None) for name/friendly_name fields."""
+    return "" if value is None else str(value).strip()
+
+
 def _parse_device_info(yaml_path: str) -> dict:
     """Parse basic device info from a YAML file."""
     try:
@@ -503,11 +512,15 @@ def _parse_device_info(yaml_path: str) -> dict:
 
         subs = data.get("substitutions", {}) or {}
         esphome_section = data.get("esphome", {}) or {}
+        if not isinstance(esphome_section, dict):
+            esphome_section = {}
+        # `friendly_name:` without a value loads as None and a numeric name
+        # as int; normalise to text so callers can compare/lower() safely.
         name = _resolve_substitutions(
-            esphome_section.get("name", "unknown"), subs
+            _as_text(esphome_section.get("name")) or "unknown", subs
         )
         friendly_name = _resolve_substitutions(
-            esphome_section.get("friendly_name", ""), subs
+            _as_text(esphome_section.get("friendly_name")), subs
         )
         return {
             "name": name,

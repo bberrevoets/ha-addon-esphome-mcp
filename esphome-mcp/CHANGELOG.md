@@ -48,6 +48,8 @@ Author: *Bert Berrevoets, Claude Code*
   configs over archived copies; a name that still matches several configs
   (or is both a filename stem and another device's name) is reported as
   ambiguous instead of silently picking one — pass the `.yaml` filename.
+- A config with an empty `friendly_name:` or a numeric `name:` no longer
+  shows as `ERROR` in `esphome_list_devices` or breaks name lookups.
 
 ## [1.2.1] - 2026-08-26
 
