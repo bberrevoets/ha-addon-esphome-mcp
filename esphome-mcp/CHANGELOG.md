@@ -8,6 +8,30 @@ All notable changes to this project will be documented in this file.
 - **Olaf van der Kaa** — glibc base image, background builds (PR #6)
 - **Claude Code** — AI-assisted development
 
+## [1.2.2] - 2026-08-26
+
+Base image unchanged (`ghcr.io/esphome/esphome:2026.8.1`, still the latest
+stable); updating restarts the add-on, no reinstall needed.
+
+### Added
+
+Author: *Bert Berrevoets, Claude Code*
+
+- Add-on icon and logo (`icon.png`, `logo.png`) shown in the Home Assistant
+  add-on store and Apps overview instead of the generic placeholder. SVG
+  sources are in the add-on folder; `scripts/render-icons.py` regenerates
+  the PNGs.
+- `scripts/deploy-dev.sh`: deploy the working tree to a Home Assistant host
+  as a local "ESPHome MCP Server (dev)" add-on (port 8098) to test changes
+  before releasing them.
+
+### Changed
+
+Author: *Bert Berrevoets, Claude Code*
+
+- Documentation: how to test unreleased builds (dev add-on script, or a
+  branch added as a second repository with `#<branch>`).
+
 ## [1.2.1] - 2026-08-26
 
 ### Fixed

@@ -1,5 +1,7 @@
 # ESPHome MCP Server — Home Assistant Add-on
 
+![ESPHome MCP Server](esphome-mcp/logo.png)
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 MCP (Model Context Protocol) server that exposes ESPHome operations as
@@ -77,6 +79,22 @@ Claude Code (desktop)  --HTTP-->  HA Add-on (MCP Server)  --local-->  ESPHome CL
 ```
 
 See [esphome-mcp/DOCS.md](esphome-mcp/DOCS.md) for full documentation.
+
+## Development
+
+Test a change on a real Home Assistant host without releasing it:
+
+- `bash scripts/deploy-dev.sh` copies the working tree to `/addons/esphome-mcp`
+  on the HA host over SSH and installs/rebuilds it as **ESPHome MCP Server
+  (dev)** on port 8098, next to the store version. `--sync-only`, `--logs` and
+  `--remove` are available; `HA_SSH_HOST` / `HA_DEV_PORT` override the defaults.
+- Or add a branch as a second add-on repository in HA:
+  `https://github.com/bberrevoets/ha-addon-esphome-mcp#<branch>` (change the
+  host port under *Network* before starting).
+
+The icon and logo are rendered from `esphome-mcp/*.svg` with
+`python scripts/render-icons.py`. See [CLAUDE.md](CLAUDE.md) for the release
+checklist.
 
 ## License
 
