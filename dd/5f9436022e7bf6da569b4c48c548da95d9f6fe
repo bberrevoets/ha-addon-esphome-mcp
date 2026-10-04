@@ -1,0 +1,55 @@
+esphome-mcp/server/main.py
+  s_f4604f3cde175d::t_a362ccfda5ee48 39,146-147,157-159,162-163,166-168,170-171,185-187,190-191,194-195,197-198
+esphome-mcp/tests/test_auth.py
+  s_f4604f3cde175d::t_d44d3d8159d146 1-42
+esphome-mcp/tests/test_tools.py
+  s_f4604f3cde175d::t_de359996af869c 1-166
+esphome-mcp/DOCS.md
+  s_f4604f3cde175d::t_5fc0c9933b4f9a 21-24,40-41,75,77,83-87
+esphome-mcp/config.yaml
+  s_f4604f3cde175d::t_75941c3ce4c3ea 28-30
+  s_f4604f3cde175d::t_3b8beb862c5664 2
+esphome-mcp/server/tools.py
+  s_f4604f3cde175d::t_b65c75cd0552f7 581-582
+  s_f4604f3cde175d::t_1308017246bf16 176-182
+  s_f4604f3cde175d::t_6c67b964313843 788-792,795
+  s_f4604f3cde175d::t_0ff15d8005e3cb 340-357
+  s_f4604f3cde175d::t_ea7b62ef502afe 575-576,578
+  s_f4604f3cde175d::t_a9776eb89916ae 55-59,63-75
+  s_f4604f3cde175d::t_7fe9cbc032981e 895-897,901-902,906-908,910,917
+  s_f4604f3cde175d::t_491d3923ee9ee9 805-822,826-828,831-835,837,840-841,847-859,862
+  s_f4604f3cde175d::t_6a9eea9c80b8a9 610,613-618
+  s_f4604f3cde175d::t_2eac71ac42ca8b 76-77
+esphome-mcp/tests/conftest.py
+  s_f4604f3cde175d::t_d241057869deb1 1-6
+CLAUDE.md
+  s_f4604f3cde175d::t_cb119733b30617 93-99
+  s_f4604f3cde175d::t_5fc0c9933b4f9a 31-33,43-48,54-61
+esphome-mcp/requirements-dev.txt
+  s_f4604f3cde175d::t_4291cee29784c5 1-3
+README.md
+  s_f4604f3cde175d::t_5fc0c9933b4f9a 23,56,58,96-101
+  s_f4604f3cde175d::t_c29d0fcf7efa2f 102
+esphome-mcp/server/auth.py
+  s_f4604f3cde175d::t_b692f5f4cb4fd0 4,19-20,23-26,36
+esphome-mcp/run.sh
+  s_f4604f3cde175d::t_eac93fff109487 32-80
+esphome-mcp/CHANGELOG.md
+  s_f4604f3cde175d::t_de81107b7c2d71 13-64
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "dd5f9436022e7bf6da569b4c48c548da95d9f6fe",
+  "prompts": {},
+  "sessions": {
+    "s_f4604f3cde175d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "52f26d0b-d090-4eeb-a722-7e3b1b859e59",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "B.N. Berrevoets <bert@berrevoets.net>"
+    }
+  }
+}
