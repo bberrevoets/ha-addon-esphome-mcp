@@ -1,5 +1,5 @@
 name: ESPHome MCP Server
-version: 1.2.2
+version: 1.2.3
 slug: esphome-mcp
 description: >-
   MCP (Model Context Protocol) server exposing ESPHome operations as tools

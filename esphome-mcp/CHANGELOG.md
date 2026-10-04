@@ -7,6 +7,29 @@ All notable changes to this project will be documented in this file.
 - **Bert Berrevoets** — Project author
 - **Olaf van der Kaa** — glibc base image, background builds (PR #6)
 - **Claude Code** — AI-assisted development
+- **genau-der-84** — issue reports #12 and #13
+- **GitHub Actions (esphome-bump)** — automated ESPHome version bumps
+
+## [1.2.3] - 2026-10-04
+
+Reinstall the add-on (not just restart) to pick up the new base image.
+
+### Changed
+
+Author: *Bert Berrevoets, Claude Code*
+
+- Base image bumped to `ghcr.io/esphome/esphome:2026.9.1` (was `2026.8.1`).
+  Devices updated from the ESPHome Device Builder 2026.9.x were refused by the
+  `esphome_flash` downgrade guard, and configs using the new
+  `ota: encryption` option failed to validate (#12, reported by genau-der-84).
+
+### Added
+
+Author: *Bert Berrevoets, Claude Code*
+
+- `.github/workflows/esphome-bump.yml`: daily check for a new stable ESPHome
+  release that opens a PR bumping `build.yaml`, `config.yaml` and this
+  changelog together, so the add-on no longer lags behind the Device Builder.
 
 ## [1.2.2] - 2026-08-26
 

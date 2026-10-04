@@ -2,5 +2,5 @@
 # Bump it together with `version:` in config.yaml on every release
 # (see CHANGELOG.md) so devices are never silently downgraded on flash.
 build_from:
-  aarch64: ghcr.io/esphome/esphome:2026.8.1
-  amd64: ghcr.io/esphome/esphome:2026.8.1
+  aarch64: ghcr.io/esphome/esphome:2026.9.1
+  amd64: ghcr.io/esphome/esphome:2026.9.1

@@ -1,0 +1,68 @@
+# Opens (or refreshes) a PR that moves the add-on to the newest stable
+# ESPHome release. The base-image tag in esphome-mcp/build.yaml IS the
+# ESPHome version, so build.yaml, config.yaml `version:` and the add-on
+# CHANGELOG are bumped together by .github/scripts/bump_esphome.py.
+#
+# Requires: Settings -> Actions -> General -> "Allow GitHub Actions to
+# create and approve pull requests".
+name: ESPHome version bump
+
+on:
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: esphome-bump
+  cancel-in-progress: false
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Find latest stable ESPHome release
+        id: latest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="$(gh api repos/esphome/esphome/releases/latest --jq .tag_name)"
+          echo "Latest ESPHome release: ${tag}"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+
+      - name: Check the base image is published for amd64 and arm64
+        run: |
+          archs="$(docker manifest inspect "ghcr.io/esphome/esphome:${{ steps.latest.outputs.tag }}" \
+            | jq -r '.manifests[].platform.architecture' | sort -u)"
+          echo "${archs}"
+          for arch in amd64 arm64; do
+            grep -qx "${arch}" <<< "${archs}" || { echo "::error::image not published for ${arch} yet"; exit 1; }
+          done
+
+      - name: Bump build.yaml, config.yaml and CHANGELOG
+        id: bump
+        run: python3 .github/scripts/bump_esphome.py "${{ steps.latest.outputs.tag }}"
+
+      - name: Open or update the bump PR
+        if: steps.bump.outputs.bumped == 'true'
+        uses: peter-evans/create-pull-request@v8
+        with:
+          branch: chore/esphome-bump
+          delete-branch: true
+          commit-message: "chore: bump ESPHome to ${{ steps.bump.outputs.esphome }} (add-on ${{ steps.bump.outputs.version }})"
+          title: "Bump ESPHome to ${{ steps.bump.outputs.esphome }} (add-on ${{ steps.bump.outputs.version }})"
+          body: |
+            Automated bump to the latest stable ESPHome release
+            [${{ steps.bump.outputs.esphome }}](https://github.com/esphome/esphome/releases/tag/${{ steps.bump.outputs.esphome }}).
+
+            - `esphome-mcp/build.yaml`: base image `ghcr.io/esphome/esphome:${{ steps.bump.outputs.esphome }}`
+            - `esphome-mcp/config.yaml`: version `${{ steps.bump.outputs.version }}`
+            - `esphome-mcp/CHANGELOG.md`: new release entry
+
+            Before merging: skim the ESPHome release notes for breaking changes,
+            and optionally test with `bash scripts/deploy-dev.sh`.
