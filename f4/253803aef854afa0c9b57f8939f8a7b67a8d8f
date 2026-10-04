@@ -1,0 +1,33 @@
+.github/workflows/esphome-bump.yml
+  s_f4604f3cde175d::t_d4f3391bf6c104 1-68
+esphome-mcp/config.yaml
+  s_f4604f3cde175d::t_0976ea3327d0c7 2
+.github/scripts/bump_esphome.py
+  s_f4604f3cde175d::t_c36af9da8c3224 1-102
+README.md
+  s_f4604f3cde175d::t_0972b6d79b7ed5 64-65
+esphome-mcp/build.yaml
+  s_f4604f3cde175d::t_0976ea3327d0c7 5-6
+esphome-mcp/CHANGELOG.md
+  s_f4604f3cde175d::t_c087a3b33214e7 10-32
+CLAUDE.md
+  s_f4604f3cde175d::t_0972b6d79b7ed5 19-21,83,109-112
+.gitignore
+  s_f4604f3cde175d::t_9b4266e0545a17 7
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "f4253803aef854afa0c9b57f8939f8a7b67a8d8f",
+  "prompts": {},
+  "sessions": {
+    "s_f4604f3cde175d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "52f26d0b-d090-4eeb-a722-7e3b1b859e59",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "B.N. Berrevoets <bert@berrevoets.net>"
+    }
+  }
+}
