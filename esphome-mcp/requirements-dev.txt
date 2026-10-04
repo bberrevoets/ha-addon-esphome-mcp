@@ -1,0 +1,3 @@
+# Local test dependencies (not installed in the add-on image).
+-r requirements.txt
+pytest>=8

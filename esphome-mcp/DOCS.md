@@ -18,7 +18,10 @@ Claude Code (desktop)  --HTTP-->  HA Add-on (MCP Server)  --local-->  ESPHome CL
 ### auth_token
 
 An authentication token to secure the MCP endpoint. If left empty, a
-token is auto-generated on first start and printed in the add-on logs.
+token is auto-generated on first start and saved into this option, so you
+can copy it from the add-on's **Configuration** tab. The log only shows a
+fingerprint (first and last four characters). If the add-on cannot save the
+option, it prints the full token in the log instead.
 
 You can set your own token in the add-on configuration:
 
@@ -34,7 +37,8 @@ auth_token: "my-secret-token"
 
 2. Install the **ESPHome MCP Server** add-on and start it.
 
-3. Check the add-on logs for the auth token (if you didn't set one).
+3. Copy the auth token from the add-on's **Configuration** tab (if you
+   didn't set one).
 
 4. Set the `ESPHOME_MCP_TOKEN` environment variable on your development
    machine to the auth token value.
@@ -68,14 +72,19 @@ auth_token: "my-secret-token"
 | `esphome_build_status` | Poll the latest background compile/flash for a device |
 | `esphome_logs` | Get recent device logs (15 s network snapshot) |
 | `esphome_push_files` | Write YAML files to the config directory |
-| `esphome_pull_files` | Read YAML files from the config directory |
+| `esphome_pull_files` | Read YAML files from the config directory (`filenames=[...]`, or `all=true` for every file) |
 | `esphome_push_fonts` | Write font files (base64-encoded) |
-| `esphome_pull_fonts` | Read font files (base64-encoded) |
+| `esphome_pull_fonts` | Read font files (base64-encoded; `filenames=[...]` or `all=true`) |
 
 ## Security
 
 - All requests require a valid Bearer token in the Authorization header.
 - `secrets.yaml` is explicitly rejected in push/pull operations.
+- File and device tools are confined to `/config/esphome/`: names that
+  leave it (`../configuration.yaml`, absolute paths, symlinks pointing
+  outside) are rejected.
+- Pulling every config needs an explicit `all=true`, so a misspelled
+  argument cannot turn a targeted read into a bulk dump.
 - The add-on exposes port 8099 — ensure your network is trusted or use
   a reverse proxy with TLS.
 

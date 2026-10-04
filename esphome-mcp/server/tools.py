@@ -52,8 +52,27 @@ _BUILDS_LOCK = threading.Lock()
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-class DeviceLookupError(ValueError):
+class ToolInputError(ValueError):
+    """Invalid tool arguments; main.py returns the message to the agent."""
+
+
+class DeviceLookupError(ToolInputError):
     """The device argument does not resolve to exactly one config file."""
+
+
+def _confined_path(rel: str) -> str | None:
+    """Absolute path of ``rel`` under ESPHOME_DIR, or None if it escapes.
+
+    The check runs on the real path, so ``../configuration.yaml``, an
+    absolute ``/config/configuration.yaml`` (os.path.join discards the base
+    for those) and symlinks pointing out of the directory are all refused.
+    The returned path keeps the caller's spelling (normalised, not
+    symlink-resolved) so names reported back stay the ones that were asked.
+    """
+    root = os.path.realpath(ESPHOME_DIR)
+    if not os.path.realpath(os.path.join(root, rel)).startswith(root + os.sep):
+        return None
+    return os.path.normpath(os.path.join(ESPHOME_DIR, rel))
 
 
 def _rel(path: str) -> str:
@@ -154,7 +173,13 @@ def _build_key(yaml_path: str) -> str:
 
 def _device_yaml_path(device: str) -> str:
     """Return the full path to a device YAML file (see _resolve_device)."""
-    return os.path.join(ESPHOME_DIR, _resolve_device(device))
+    rel = _resolve_device(device)
+    path = _confined_path(rel)
+    if path is None:
+        raise DeviceLookupError(
+            f"Device '{device}' resolves outside the ESPHome directory ({rel})."
+        )
+    return path
 
 
 def _run(cmd: list[str], timeout: int = 120, cwd: str | None = None) -> str:
@@ -311,6 +336,24 @@ class _LenientLoader(yaml.SafeLoader):
     tag (!lambda, !include, !extend, !remove, ...) maps to None. Only scalar
     metadata is read through this loader, never executed.
     """
+
+    def flatten_mapping(self, node):
+        # ESPHome supports `<<: !include file.yaml` (and lists of those).
+        # PyYAML checks merge values on the node tree, before any tag
+        # constructor runs, and rejects a tagged scalar as a merge source.
+        # The included file is not loaded here, so drop those entries.
+        kept = []
+        for key_node, value_node in node.value:
+            if key_node.tag == "tag:yaml.org,2002:merge":
+                if isinstance(value_node, yaml.SequenceNode):
+                    value_node.value = [
+                        v for v in value_node.value if isinstance(v, yaml.MappingNode)
+                    ]
+                elif not isinstance(value_node, yaml.MappingNode):
+                    continue
+            kept.append((key_node, value_node))
+        node.value = kept
+        super().flatten_mapping(node)
 
 
 def _secret_constructor(loader, node):
@@ -529,11 +572,14 @@ def _parse_device_info(yaml_path: str) -> dict:
             "file": os.path.basename(yaml_path),
         }
     except Exception as e:
+        # Only this lenient metadata read failed; `esphome config` may still
+        # accept the file, so do not present it as a broken device.
         return {
-            "name": "error",
+            "name": "",
             "friendly_name": "",
             "file": os.path.basename(yaml_path),
-            "error": str(e),
+            # YAML errors span several lines; keep the listing one per device.
+            "error": " ".join(str(e).split()),
         }
 
 
@@ -561,10 +607,15 @@ def list_devices() -> str:
 
     lines = [f"ESPHome Devices (add-on ESPHome {_local_esphome_version()}):", ""]
     for d in devices:
-        name = d["name"]
+        name = d["name"] or "?"
         friendly = f' ("{d["friendly_name"]}")' if d.get("friendly_name") else ""
         status = f" [{d['status']}]" if d["status"] == "archived" else ""
-        error = f" ERROR: {d['error']}" if d.get("error") else ""
+        error = (
+            f" (could not parse metadata: {d['error']}; "
+            "run esphome_validate to check the config)"
+            if d.get("error")
+            else ""
+        )
         lines.append(f"  - {name}{friendly}{status} ({d['file']}){error}")
 
     return "\n".join(lines)
@@ -734,11 +785,14 @@ def push_files(files: dict[str, str]) -> str:
             results.append(f"{filename}: REJECTED (only .yaml files allowed)")
             continue
 
-        # Support archive/ subdirectory
-        target = os.path.join(ESPHOME_DIR, filename)
-        os.makedirs(os.path.dirname(target), exist_ok=True)
+        # Subdirectories (archive/, packages) are fine; leaving ESPHOME_DIR is not.
+        target = _confined_path(filename)
+        if target is None:
+            results.append(f"{filename}: REJECTED (outside the ESPHome directory)")
+            continue
 
         try:
+            os.makedirs(os.path.dirname(target), exist_ok=True)
             with open(target, "w", encoding="utf-8", newline="\n") as f:
                 f.write(content)
             results.append(f"{filename}: OK")
@@ -748,40 +802,64 @@ def push_files(files: dict[str, str]) -> str:
     return "Push results:\n" + "\n".join(results)
 
 
-def pull_files(filenames: list[str] | None = None) -> dict[str, str]:
+def _check_pull_args(filenames: list[str] | None, all_files: bool) -> None:
+    """Pulling everything must be asked for explicitly.
+
+    FastMCP drops unknown arguments, so a misspelled `filenames` would
+    otherwise arrive as None and turn a targeted read into a bulk dump.
+    """
+    if filenames and all_files:
+        raise ToolInputError("Pass either filenames or all=true, not both.")
+    if not filenames and not all_files:
+        raise ToolInputError(
+            "No filenames given. Pass filenames=[...] to pull specific files, "
+            "or all=true to pull every file."
+        )
+
+
+def pull_files(
+    filenames: list[str] | None = None, all_files: bool = False
+) -> dict[str, str]:
     """Read YAML files from the ESPHome config directory.
 
     Args:
-        filenames: Optional list of filenames to pull. If None, pulls all.
+        filenames: Filenames to pull (``.yaml`` optional; ``archive/`` is
+            searched when a name is not found at the top level).
+        all_files: Pull every config (top level and ``archive/``) instead.
 
     Returns:
-        Dict mapping filename to YAML content.
+        Dict mapping filename to YAML content, or to an ``ERROR:`` /
+        ``REJECTED:`` message for names that could not be pulled.
+
+    Raises:
+        ToolInputError: neither or both of filenames / all_files given.
     """
+    _check_pull_args(filenames, all_files)
     result = {}
 
-    if filenames is None:
-        # Pull all YAML files
-        paths = sorted(glob.glob(os.path.join(ESPHOME_DIR, "*.yaml")))
-        archive_dir = os.path.join(ESPHOME_DIR, "archive")
-        if os.path.isdir(archive_dir):
-            paths += sorted(glob.glob(os.path.join(archive_dir, "*.yaml")))
+    if all_files:
+        paths = _device_yaml_files()
     else:
         paths = []
         for fn in filenames:
             if not fn.endswith(".yaml"):
                 fn = f"{fn}.yaml"
-            path = os.path.join(ESPHOME_DIR, fn)
-            if os.path.isfile(path):
-                paths.append(path)
-            else:
-                archive_path = os.path.join(ESPHOME_DIR, "archive", fn)
-                if os.path.isfile(archive_path):
-                    paths.append(archive_path)
+            if _is_forbidden(fn):
+                result[fn] = "REJECTED: secrets files cannot be pulled"
+                continue
+            path = _confined_path(fn)
+            if path is None:
+                result[fn] = "REJECTED: outside the ESPHome directory"
+                continue
+            if not os.path.isfile(path):
+                path = _confined_path(os.path.join("archive", fn))
+            if path is None or not os.path.isfile(path):
+                result[fn] = "ERROR: not found"
+                continue
+            paths.append(path)
 
     for path in paths:
-        if _is_forbidden(path):
-            continue
-        rel = os.path.relpath(path, ESPHOME_DIR)
+        rel = _rel(path)
         try:
             with open(path, encoding="utf-8") as f:
                 result[rel] = f.read()
@@ -814,22 +892,29 @@ def push_fonts(files: dict[str, str]) -> str:
     return "Font push results:\n" + "\n".join(results)
 
 
-def pull_fonts(filenames: list[str] | None = None) -> dict[str, str]:
+def pull_fonts(
+    filenames: list[str] | None = None, all_files: bool = False
+) -> dict[str, str]:
     """Read font files from the ESPHome fonts directory.
 
     Args:
-        filenames: Optional list of font filenames. If None, pulls all.
+        filenames: Font filenames to pull (basename only).
+        all_files: Pull every font instead.
 
     Returns:
         Dict mapping filename to base64-encoded content.
+
+    Raises:
+        ToolInputError: neither or both of filenames / all_files given.
     """
+    _check_pull_args(filenames, all_files)
     fonts_dir = os.path.join(ESPHOME_DIR, "fonts")
     result = {}
 
     if not os.path.isdir(fonts_dir):
         return result
 
-    if filenames is None:
+    if all_files:
         paths = sorted(glob.glob(os.path.join(fonts_dir, "*")))
     else:
         paths = [

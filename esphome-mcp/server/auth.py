@@ -1,6 +1,7 @@
 """Bearer token authentication middleware for the MCP server."""
 
 import os
+import secrets
 
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
@@ -15,9 +16,14 @@ class BearerAuthMiddleware(BaseHTTPMiddleware):
         if request.url.path == "/health":
             return await call_next(request)
 
+        # Fail closed: run.sh always sets a token, so an empty one means a
+        # misconfigured standalone run, never "authentication disabled".
         expected_token = os.environ.get("ESPHOME_MCP_AUTH_TOKEN", "")
         if not expected_token:
-            return await call_next(request)
+            return JSONResponse(
+                {"error": "Server has no auth token configured (ESPHOME_MCP_AUTH_TOKEN)"},
+                status_code=503,
+            )
 
         auth_header = request.headers.get("Authorization", "")
         if not auth_header.startswith("Bearer "):
@@ -27,7 +33,7 @@ class BearerAuthMiddleware(BaseHTTPMiddleware):
             )
 
         token = auth_header[len("Bearer "):]
-        if token != expected_token:
+        if not secrets.compare_digest(token.encode(), expected_token.encode()):
             return JSONResponse(
                 {"error": "Invalid token"},
                 status_code=403,

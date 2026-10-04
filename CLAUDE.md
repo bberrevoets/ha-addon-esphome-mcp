@@ -28,7 +28,9 @@ instead of SSH, getting direct access to ESPHome CLI and the
   - `server/` — Python package
     - `main.py` — FastMCP app, tool registration, uvicorn entry point
     - `tools.py` — All tool implementations (no SSH, local filesystem)
-    - `auth.py` — Bearer token middleware
+    - `auth.py` — Bearer token middleware (fails closed on an empty token)
+  - `tests/` — pytest unit tests (local only, not in the image);
+    `requirements-dev.txt` installs the server deps plus pytest
   - `DOCS.md` — Add-on documentation page shown in HA UI
   - `icon.svg` / `icon.png`, `logo.svg` / `logo.png` — presentation files
     (HA reads the PNGs; the SVGs are the sources)
@@ -38,13 +40,25 @@ instead of SSH, getting direct access to ESPHome CLI and the
 
 ## Key Conventions
 
-- **Auth**: Bearer token in `Authorization` header; auto-generated if not
-  configured, persisted to `/data/auth_token`
+- **Auth**: Bearer token in `Authorization` header, compared with
+  `secrets.compare_digest`; an empty token answers 503 (fail closed). If not
+  configured, `run.sh` generates one, persists it to `/data/auth_token` and
+  saves it as the `auth_token` option via the Supervisor API
+  (`hassio_api: true`) so it shows in the Configuration tab. The log only
+  shows a fingerprint, except as fallback when saving the option fails
 - **Transport**: Streamable HTTP on port 8099 at `/mcp`; `GET /health`
   (unauthenticated) backs the image `HEALTHCHECK`. Never use
   `HEALTHCHECK NONE`: it leaves `Test: ["NONE"]` in the metadata and the
   Supervisor then waits forever for a healthy event ("Starting")
 - **Secrets**: `secrets.yaml` is explicitly rejected in push/pull tools
+- **Confinement**: every caller-supplied path goes through
+  `_confined_path()` (realpath check against `ESPHOME_DIR`) — push/pull and
+  `_device_yaml_path()`. Never `os.path.join(ESPHOME_DIR, user_input)` directly
+- **Bulk reads**: `esphome_pull_files` / `esphome_pull_fonts` need
+  `filenames` or `all=true`. FastMCP drops unknown arguments silently, so
+  "no arguments" must never mean "everything"
+- **Lenient YAML**: `_LenientLoader` only reads metadata; it maps unknown
+  tags to None and drops `<<: !include` merge keys (`flatten_mapping`)
 - **ESPHome**: Provided by the official `ghcr.io/esphome/esphome`
   (Debian/glibc) base image — required so the ESP cross-toolchains can run.
   The tag pinned in `build.yaml` **is** the ESPHome version; bump it together
@@ -75,6 +89,13 @@ The add-on is built by HA Supervisor when installed. Three ways to test a
 change before it is released, cheapest first. None of them publishes
 anything: users' HA instances only follow `main`, so feature branches are
 always safe to push.
+
+Run the unit tests first (no Docker, no ESPHome needed):
+
+```bash
+python -m venv .venv && .venv/bin/pip install -r esphome-mcp/requirements-dev.txt
+cd esphome-mcp && ../.venv/bin/python -m pytest
+```
 
 1. **Local Docker build** (server smoke test on the dev machine):
 

@@ -10,6 +10,58 @@ All notable changes to this project will be documented in this file.
 - **genau-der-84** — issue reports #12 and #13
 - **GitHub Actions (esphome-bump)** — automated ESPHome version bumps
 
+## [1.3.0] - 2026-10-04
+
+Hardening release for #13 (reported by genau-der-84). Base image unchanged
+(`ghcr.io/esphome/esphome:2026.9.1`). The add-on now requests Supervisor API
+access (`hassio_api`) to store a generated auth token in its options.
+
+### Security
+
+Author: *Bert Berrevoets, Claude Code*
+
+- `esphome_push_files` / `esphome_pull_files` are confined to
+  `/config/esphome/`. Previously `../configuration.yaml` or an absolute path
+  could read or overwrite any `.yaml` file under `/config`. Paths are checked
+  after resolving `..` and symlinks; rejected names are reported per file.
+  Device tools (`esphome_validate`, `esphome_compile`, …) refuse device
+  arguments that resolve outside the directory as well.
+- The auth middleware fails closed: an empty `ESPHOME_MCP_AUTH_TOKEN` now
+  answers 503 instead of disabling authentication (only reachable when
+  running the image standalone), and tokens are compared in constant time.
+- An auto-generated auth token is saved as the `auth_token` option (visible
+  in the add-on's Configuration tab) and the log shows only a fingerprint.
+  If the option cannot be saved, the full token is still logged so you are
+  never locked out.
+
+### Changed
+
+Author: *Bert Berrevoets, Claude Code*
+
+- **Breaking for MCP clients:** `esphome_pull_files` and
+  `esphome_pull_fonts` without arguments now return an error. Pass
+  `filenames=[...]`, or `all=true` to pull everything. FastMCP silently drops
+  misspelled arguments, which used to turn a targeted read into a dump of
+  every config (often including API keys and OTA passwords).
+- `esphome_pull_files` reports requested files that are missing
+  (`ERROR: not found`) or refused (`REJECTED: ...`) instead of skipping them.
+
+### Fixed
+
+Author: *Bert Berrevoets, Claude Code*
+
+- `esphome_list_devices` showed valid configs that use `<<: !include ...`
+  merge keys (e.g. LVGL widget packages) as `error`. Those merge keys are now
+  skipped while reading the name, and a config whose metadata really cannot
+  be read is labelled "could not parse metadata" instead of `error`.
+
+### Added
+
+Author: *Bert Berrevoets, Claude Code*
+
+- pytest unit tests (`esphome-mcp/tests/`, `requirements-dev.txt`) for path
+  confinement, pull arguments, lenient YAML parsing and auth.
+
 ## [1.2.3] - 2026-10-04
 
 Reinstall the add-on (not just restart) to pick up the new base image.
