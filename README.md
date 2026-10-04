@@ -20,7 +20,7 @@ Assistant add-on with direct filesystem access — no SSH required.
 
 2. Install and start the **ESPHome MCP Server** add-on.
 
-3. Check the add-on logs for the auto-generated auth token.
+3. Copy the auto-generated auth token from the add-on's **Configuration** tab.
 
 4. Set `ESPHOME_MCP_TOKEN` in your shell environment.
 
@@ -53,9 +53,9 @@ Assistant add-on with direct filesystem access — no SSH required.
 | `esphome_build_status` | Poll the latest background compile/flash |
 | `esphome_logs` | Get recent device logs (15 s network snapshot) |
 | `esphome_push_files` | Write YAML configs to HA |
-| `esphome_pull_files` | Read YAML configs from HA |
+| `esphome_pull_files` | Read YAML configs from HA (`filenames=[...]` or `all=true`) |
 | `esphome_push_fonts` | Write font files (base64) to HA |
-| `esphome_pull_fonts` | Read font files (base64) from HA |
+| `esphome_pull_fonts` | Read font files (base64) from HA (`filenames=[...]` or `all=true`) |
 
 ## ESPHome version
 
@@ -92,6 +92,13 @@ Test a change on a real Home Assistant host without releasing it:
 - Or add a branch as a second add-on repository in HA:
   `https://github.com/bberrevoets/ha-addon-esphome-mcp#<branch>` (change the
   host port under *Network* before starting).
+
+Unit tests (path confinement, pull arguments, YAML parsing, auth) run locally:
+
+```bash
+python -m venv .venv && .venv/bin/pip install -r esphome-mcp/requirements-dev.txt
+cd esphome-mcp && ../.venv/bin/python -m pytest
+```
 
 The icon and logo are rendered from `esphome-mcp/*.svg` with
 `python scripts/render-icons.py`. See [CLAUDE.md](CLAUDE.md) for the release

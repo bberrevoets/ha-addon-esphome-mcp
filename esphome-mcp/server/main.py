@@ -36,7 +36,7 @@ async def _in_thread(fn, *args, **kwargs):
     """
     try:
         return await anyio.to_thread.run_sync(functools.partial(fn, *args, **kwargs))
-    except tools.DeviceLookupError as e:
+    except tools.ToolInputError as e:
         # Same shape as the "Device config not found" replies: a message the
         # agent can act on (pass the filename), not a tool exception.
         return str(e)
@@ -143,7 +143,8 @@ async def esphome_logs(device: str, num_lines: int = 50) -> str:
 async def esphome_push_files(files: dict[str, str]) -> str:
     """Push YAML config files to the ESPHome directory on Home Assistant.
 
-    Writes files to /config/esphome/. Rejects secrets.yaml.
+    Writes files under /config/esphome/ only (paths that leave it, via
+    ".." or an absolute path, are rejected). Rejects secrets.yaml.
 
     Args:
         files: Dict mapping filename to YAML content.
@@ -153,17 +154,21 @@ async def esphome_push_files(files: dict[str, str]) -> str:
 
 
 @mcp.tool()
-async def esphome_pull_files(filenames: list[str] | None = None) -> str:
+async def esphome_pull_files(
+    filenames: list[str] | None = None, all: bool = False
+) -> str:
     """Pull YAML config files from the ESPHome directory on Home Assistant.
 
-    Returns file contents. Excludes secrets.yaml.
+    Returns file contents as JSON. Excludes secrets.yaml. Pass exactly one
+    of `filenames` or `all=true`; calling with neither is an error.
 
     Args:
-        filenames: Optional list of filenames to pull.
-                   If omitted, returns all YAML files.
+        filenames: Filenames to pull, e.g. ["kitchen.yaml"] (".yaml" is
+                   optional; archive/ is searched if not found at the top).
+        all: Pull every YAML file (top level and archive/) instead.
     """
-    result = await _in_thread(tools.pull_files, filenames)
-    return json.dumps(result, indent=2)
+    result = await _in_thread(tools.pull_files, filenames, all_files=all)
+    return result if isinstance(result, str) else json.dumps(result, indent=2)
 
 
 @mcp.tool()
@@ -177,17 +182,20 @@ async def esphome_push_fonts(files: dict[str, str]) -> str:
 
 
 @mcp.tool()
-async def esphome_pull_fonts(filenames: list[str] | None = None) -> str:
+async def esphome_pull_fonts(
+    filenames: list[str] | None = None, all: bool = False
+) -> str:
     """Pull font files from the ESPHome fonts directory on Home Assistant.
 
-    Returns base64-encoded file contents.
+    Returns base64-encoded file contents as JSON. Pass exactly one of
+    `filenames` or `all=true`; calling with neither is an error.
 
     Args:
-        filenames: Optional list of font filenames to pull.
-                   If omitted, returns all fonts.
+        filenames: Font filenames to pull.
+        all: Pull every font file instead.
     """
-    result = await _in_thread(tools.pull_fonts, filenames)
-    return json.dumps(result, indent=2)
+    result = await _in_thread(tools.pull_fonts, filenames, all_files=all)
+    return result if isinstance(result, str) else json.dumps(result, indent=2)
 
 
 # ---------------------------------------------------------------------------

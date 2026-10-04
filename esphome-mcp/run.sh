@@ -29,10 +29,55 @@ if [ -z "$AUTH_TOKEN" ] || [ "$AUTH_TOKEN" = "null" ]; then
     else
         AUTH_TOKEN="$(cat "$TOKEN_FILE")"
     fi
-    echo "[WARN] ==================================================="
-    echo "[WARN]   MCP Auth Token: ${AUTH_TOKEN}"
-    echo "[WARN] ==================================================="
-    echo "[WARN] Set this token in your MCP client's Authorization header."
+    # Store it as the auth_token option so it shows in the add-on's
+    # Configuration tab instead of the log (needs hassio_api: true). The
+    # next start then reads it from options.json like a configured token.
+    if python3 - "$AUTH_TOKEN" "$OPTIONS_FILE" <<'PY'
+import json, os, sys, urllib.request
+
+token, options_file = sys.argv[1], sys.argv[2]
+supervisor_token = os.environ.get("SUPERVISOR_TOKEN")
+if not supervisor_token:
+    sys.exit(1)
+try:
+    with open(options_file) as f:
+        options = json.load(f)
+except Exception:
+    options = {}
+options["auth_token"] = token
+request = urllib.request.Request(
+    "http://supervisor/addons/self/options",
+    data=json.dumps({"options": options}).encode(),
+    headers={
+        "Authorization": f"Bearer {supervisor_token}",
+        "Content-Type": "application/json",
+    },
+    method="POST",
+)
+try:
+    urllib.request.urlopen(request, timeout=10)
+except Exception as e:
+    print(f"[WARN] Could not save the token to the add-on options: {e}")
+    sys.exit(1)
+PY
+    then
+        echo "[INFO] Generated an MCP auth token and saved it as the auth_token"
+        echo "[INFO] option: copy it from the add-on's Configuration tab."
+    else
+        # Never lock the user out: without the Supervisor API the log is the
+        # only place the generated token can be read.
+        echo "[WARN] ==================================================="
+        echo "[WARN]   MCP Auth Token: ${AUTH_TOKEN}"
+        echo "[WARN] ==================================================="
+        echo "[WARN] Set this token in your MCP client's Authorization header."
+    fi
+fi
+
+# Log a fingerprint only, enough to check which token a client should use.
+if [ "${#AUTH_TOKEN}" -ge 32 ]; then
+    echo "[INFO] MCP auth token: ${AUTH_TOKEN:0:4}...${AUTH_TOKEN: -4}"
+else
+    echo "[INFO] MCP auth token: set (${#AUTH_TOKEN} characters)"
 fi
 
 export ESPHOME_MCP_AUTH_TOKEN="$AUTH_TOKEN"
