@@ -16,6 +16,9 @@ instead of SSH, getting direct access to ESPHome CLI and the
 - `scripts/deploy-dev.sh` — push the working tree to the HA host as a local
   dev add-on (see Building / Testing)
 - `scripts/render-icons.py` — rasterize `icon.svg`/`logo.svg` to PNG
+- `.github/workflows/esphome-bump.yml` + `.github/scripts/bump_esphome.py` —
+  daily check for a new stable ESPHome release; opens/refreshes the
+  `chore/esphome-bump` PR that bumps build.yaml, config.yaml and the CHANGELOG
 - `esphome-mcp/` — The add-on
   - `config.yaml` — HA add-on manifest (name, version, ports, options)
   - `build.yaml` — Multi-arch Docker build config
@@ -77,7 +80,7 @@ always safe to push.
 
    ```bash
    cd esphome-mcp
-   docker build --build-arg BUILD_FROM=ghcr.io/esphome/esphome:2026.8.1 -t esphome-mcp .
+   docker build --build-arg BUILD_FROM=ghcr.io/esphome/esphome:2026.9.1 -t esphome-mcp .
    docker run -p 8099:8099 -v /path/to/config:/config -e ESPHOME_MCP_AUTH_TOKEN=test esphome-mcp
    ```
 
@@ -102,6 +105,10 @@ always safe to push.
    done.
 
 ## Releasing
+
+ESPHome-only bumps arrive automatically as a `chore/esphome-bump` PR (see
+`esphome-bump.yml`); review the ESPHome release notes, then merge. For a
+manual release:
 
 1. Bump the base-image tag in `esphome-mcp/build.yaml` to the latest stable
    ESPHome (`ghcr.io/esphome/esphome:<tag>`, amd64 + arm64 are published).
