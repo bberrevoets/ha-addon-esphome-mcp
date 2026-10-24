@@ -65,4 +65,6 @@ jobs:
             - `esphome-mcp/CHANGELOG.md`: new release entry
 
             Before merging: skim the ESPHome release notes for breaking changes,
-            and optionally test with `bash scripts/deploy-dev.sh`.
+            check the official add-on's `docker/ha-addon-rootfs/etc/s6-overlay/s6-rc.d/esphome/run`
+            for new exports to mirror in `esphome-mcp/run.sh`, and optionally
+            test with `bash scripts/deploy-dev.sh`.
