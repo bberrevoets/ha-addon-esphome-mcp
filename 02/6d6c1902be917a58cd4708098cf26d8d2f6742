@@ -1,0 +1,28 @@
+esphome-mcp/CHANGELOG.md
+  s_86d5a9696c6132::t_40b322aad32142 30
+  s_86d5a9696c6132::t_c774f460f38ae2 13,23-29,31
+  s_86d5a9696c6132::t_9d077685eaab30 32
+CLAUDE.md
+  s_86d5a9696c6132::t_a394ab87961467 131-136
+esphome-mcp/run.sh
+  s_86d5a9696c6132::t_283dc45d79fbd6 99-100
+  s_86d5a9696c6132::t_6cf85f49bb39c4 107-108,111-113
+.github/workflows/esphome-bump.yml
+  s_86d5a9696c6132::t_852071cc150757 68-70
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "026d6c1902be917a58cd4708098cf26d8d2f6742",
+  "prompts": {},
+  "sessions": {
+    "s_86d5a9696c6132": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c46ddac6-38f3-4bd5-856e-e0df2889d956",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "B.N. Berrevoets <bert@berrevoets.net>"
+    }
+  }
+}
