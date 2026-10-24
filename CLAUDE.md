@@ -128,8 +128,12 @@ cd esphome-mcp && ../.venv/bin/python -m pytest
 ## Releasing
 
 ESPHome-only bumps arrive automatically as a `chore/esphome-bump` PR (see
-`esphome-bump.yml`); review the ESPHome release notes, then merge. For a
-manual release:
+`esphome-bump.yml`); review the ESPHome release notes, then merge. Also diff
+the official add-on's `docker/ha-addon-rootfs/etc/s6-overlay/s6-rc.d/esphome/run`
+between the old and new ESPHome tag: `run.sh` mirrors its exports, and new
+ones are not listed as breaking changes (2026.10.0 added three toolchain and
+cache paths). A daily run rebuilds the bump branch from `main`, so merge soon
+after pushing your own commits to it. For a manual release:
 
 1. Bump the base-image tag in `esphome-mcp/build.yaml` to the latest stable
    ESPHome (`ghcr.io/esphome/esphome:<tag>`, amd64 + arm64 are published).

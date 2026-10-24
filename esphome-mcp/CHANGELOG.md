@@ -10,7 +10,7 @@ All notable changes to this project will be documented in this file.
 - **genau-der-84** — issue reports #12 and #13
 - **GitHub Actions (esphome-bump)** — automated ESPHome version bumps
 
-## [1.3.1] - 2026-10-23
+## [1.3.1] - 2026-10-24
 
 ### Changed
 
@@ -19,6 +19,16 @@ Author: *GitHub Actions (esphome-bump)*
 - Base image bumped to `ghcr.io/esphome/esphome:2026.10.0` (was `2026.9.1`).
   Release notes: <https://github.com/esphome/esphome/releases/tag/2026.10.0>.
   Reinstall the add-on (not just restart) to pick up the new base image.
+
+### Fixed
+
+Author: *Bert Berrevoets, Claude Code*
+
+- The native ESP8266 Arduino toolchain (the ESP8266 default since ESPHome
+  2026.10), the native host toolchain and the PlatformIO compiler cache are
+  kept in the add-on's `/data` volume, as in the official ESPHome add-on.
+  Otherwise they would be stored inside the container and downloaded again
+  after every restart or update.
 
 ## [1.3.0] - 2026-10-04
 

@@ -96,16 +96,21 @@ pio_cache_base=/data/cache/platformio
 
 # Storage json + build dirs (/data/build/<name>) instead of /config/esphome/.esphome
 export ESPHOME_DATA_DIR=/data
-# Libraries pre-installed in the base image
+# Global library dir, as in the official add-on (empty since ESPHome 2026.10:
+# the base image no longer pre-installs libraries)
 export PLATFORMIO_GLOBALLIB_DIR=/piolibs
 # Toolchains/platforms/packages cache (core_dir itself must stay default —
 # PlatformIO keeps its settings in core_dir/appstate.json)
 export PLATFORMIO_PLATFORMS_DIR="${pio_cache_base}/platforms"
 export PLATFORMIO_PACKAGES_DIR="${pio_cache_base}/packages"
 export PLATFORMIO_CACHE_DIR="${pio_cache_base}/cache"
-# Native toolchain installs (ESP-IDF / nRF SDK) on the persistent volume
+# Native toolchain installs (ESP-IDF / nRF SDK / ESP8266 Arduino / host) and
+# the compiler cache on the persistent volume
 export ESPHOME_ESP_IDF_PREFIX=/data/cache/idf
 export ESPHOME_SDK_NRF_PREFIX=/data/cache/sdk-nrf
+export ESPHOME_ARDUINO8266_PREFIX=/data/cache/arduino8266
+export ESPHOME_HOST_PREFIX=/data/cache/host
+export ESPHOME_PLATFORMIO_CCACHE_DIR=/data/cache/platformio-ccache
 
 mkdir -p "${pio_cache_base}" /config/esphome
 
