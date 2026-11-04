@@ -4,3 +4,21 @@
 *.png binary
 *.svg text eol=lf
 *.py text eol=lf
+
+# >>> repo-init >>>
+# Binaries in Git LFS
+*.pdf filter=lfs diff=lfs merge=lfs -text
+*.zip filter=lfs diff=lfs merge=lfs -text
+*.png filter=lfs diff=lfs merge=lfs -text
+*.jpg filter=lfs diff=lfs merge=lfs -text
+*.jpeg filter=lfs diff=lfs merge=lfs -text
+*.step filter=lfs diff=lfs merge=lfs -text
+*.stp filter=lfs diff=lfs merge=lfs -text
+*.stl filter=lfs diff=lfs merge=lfs -text
+*.3mf filter=lfs diff=lfs merge=lfs -text
+*.f3d filter=lfs diff=lfs merge=lfs -text
+*.f3z filter=lfs diff=lfs merge=lfs -text
+# <<< repo-init <<<
+
+# Everything under esphome-mcp/ stays a plain git file: the Supervisor clones without Git LFS
+esphome-mcp/** !filter !diff !merge

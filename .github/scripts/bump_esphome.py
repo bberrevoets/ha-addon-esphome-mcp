@@ -3,7 +3,7 @@
 
 The base-image tag in esphome-mcp/build.yaml IS the ESPHome version the
 add-on ships, and every bump must move three files in lockstep (see
-CLAUDE.md, "Releasing"):
+AGENTS.md, "Releasing"):
 
 - esphome-mcp/build.yaml   ghcr.io/esphome/esphome:<tag> for every arch
 - esphome-mcp/config.yaml  version: patch bump
