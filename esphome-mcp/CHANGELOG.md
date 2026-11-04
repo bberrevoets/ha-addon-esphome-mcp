@@ -18,7 +18,7 @@ Author: *GitHub Actions (esphome-bump)*
 
 - Base image bumped to `ghcr.io/esphome/esphome:2026.10.2` (was `2026.10.1`).
   Release notes: <https://github.com/esphome/esphome/releases/tag/2026.10.2>.
-  Reinstall the add-on (not just restart) to pick up the new base image.
+  In the add-on store, use *Check for updates*, then update the add-on. A restart alone keeps the old base image.
 
 ## [1.3.2] - 2026-10-29
 

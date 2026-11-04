@@ -82,7 +82,7 @@ def main() -> int:
         "Author: *GitHub Actions (esphome-bump)*\n\n"
         f"- Base image bumped to `ghcr.io/esphome/esphome:{latest}` (was `{current}`).\n"
         f"  Release notes: <https://github.com/esphome/esphome/releases/tag/{latest}>.\n"
-        "  Reinstall the add-on (not just restart) to pick up the new base image.\n\n"
+        "  In the add-on store, use *Check for updates*, then update the add-on. A restart alone keeps the old base image.\n\n"
     )
     changelog = CHANGELOG.read_text(encoding="utf-8")
     first = changelog.find("\n## [")

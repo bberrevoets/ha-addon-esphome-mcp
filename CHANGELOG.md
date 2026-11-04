@@ -25,6 +25,9 @@ Author: *Bert Berrevoets*
 
 Author: *Bert Berrevoets*
 
+- Update advice: users check for updates and then update, instead of reinstalling. Update keeps their token and caches,
+  while a reinstall resets the token and, without a store refresh, installs the old version again. Changed in
+  `AGENTS.md`, the 1.3.3 changelog entry and the text `bump_esphome.py` writes for new releases.
 - AI agent setup (2026-11): the instructions moved from `CLAUDE.md` to `AGENTS.md`, the single source for Claude Code,
   Codex and other agents, with a `CLAUDE.md` stub that imports it. Repo-init blocks in `.gitignore` and
   `.gitattributes`, an override that keeps everything under `esphome-mcp/` out of Git LFS, a Conventions section in
