@@ -93,7 +93,7 @@ Test a change on a real Home Assistant host without releasing it:
   `https://github.com/bberrevoets/ha-addon-esphome-mcp#<branch>` (change the
   host port under *Network* before starting).
 
-Unit tests (path confinement, pull arguments, YAML parsing, auth) run locally:
+Unit tests (path confinement, pull arguments, YAML parsing, auth) run on every pull request, and locally:
 
 ```bash
 python -m venv .venv && .venv/bin/pip install -r esphome-mcp/requirements-dev.txt

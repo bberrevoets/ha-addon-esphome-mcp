@@ -15,6 +15,12 @@ This file only records repository changes that do not ship in the add-on, such a
 
 ## [Unreleased]
 
+### Added
+
+Author: *Bert Berrevoets*
+
+- CI on pull requests: unit tests with the Python of the add-on image, and Markdown lint.
+
 ### Changed
 
 Author: *Bert Berrevoets*

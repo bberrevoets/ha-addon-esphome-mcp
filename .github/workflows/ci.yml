@@ -1,0 +1,42 @@
+name: CI
+
+# Checks only: unit tests and Markdown lint. Nothing is built or published here; users follow main through Home Assistant.
+#
+# Pull requests from the esphome-bump workflow do not start this, because GitHub starts no workflows for PRs made with
+# the default token. So never make these jobs required checks in the ruleset, or bump PRs could not be merged.
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # The Python of the add-on image: ghcr.io/esphome/esphome is built on python:3.14-slim-trixie.
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+
+      - name: Install dependencies
+        run: pip install -r esphome-mcp/requirements-dev.txt
+
+      - name: Run tests
+        working-directory: esphome-mcp
+        run: python -m pytest
+
+  markdown:
+    name: Markdown lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: DavidAnson/markdownlint-cli2-action@v25
+        with:
+          globs: "**/*.md"
