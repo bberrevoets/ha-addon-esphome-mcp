@@ -10,6 +10,17 @@ All notable changes to this project will be documented in this file.
 - **genau-der-84** — issue reports #12 and #13
 - **GitHub Actions (esphome-bump)** — automated ESPHome version bumps
 
+## [1.3.4] - 2026-11-04
+
+### Changed
+
+Author: *Bert Berrevoets*
+
+- Replaced two settings the Supervisor reports as deprecated, with no change in behaviour: the base image moved from
+  `build.yaml` to the `Dockerfile`, and the Home Assistant configuration is now mounted through `homeassistant_config`
+  instead of `config`, still at `/config`. ESPHome stays at 2026.10.2.
+  In the add-on store, use *Check for updates*, then update the add-on.
+
 ## [1.3.3] - 2026-11-04
 
 ### Changed

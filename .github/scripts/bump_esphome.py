@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Bump the add-on to a newer ESPHome release.
 
-The base-image tag in esphome-mcp/build.yaml IS the ESPHome version the
+The base-image tag in esphome-mcp/Dockerfile IS the ESPHome version the
 add-on ships, and every bump must move three files in lockstep (see
 AGENTS.md, "Releasing"):
 
-- esphome-mcp/build.yaml   ghcr.io/esphome/esphome:<tag> for every arch
+- esphome-mcp/Dockerfile   FROM ghcr.io/esphome/esphome:<tag>
 - esphome-mcp/config.yaml  version: patch bump
 - esphome-mcp/CHANGELOG.md new release entry (the copy HA displays)
 
@@ -24,11 +24,11 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-BUILD_YAML = ROOT / "esphome-mcp" / "build.yaml"
+DOCKERFILE = ROOT / "esphome-mcp" / "Dockerfile"
 CONFIG_YAML = ROOT / "esphome-mcp" / "config.yaml"
 CHANGELOG = ROOT / "esphome-mcp" / "CHANGELOG.md"
 
-IMAGE_RE = re.compile(r"(ghcr\.io/esphome/esphome:)([0-9][0-9.]*)")
+IMAGE_RE = re.compile(r"^(FROM\s+ghcr\.io/esphome/esphome:)([0-9][0-9.]*)", re.MULTILINE)
 VERSION_RE = re.compile(r"^version:\s*(\d+)\.(\d+)\.(\d+)\s*$", re.MULTILINE)
 
 
@@ -51,10 +51,10 @@ def main() -> int:
         return 2
     latest = sys.argv[1]
 
-    build = BUILD_YAML.read_text(encoding="utf-8")
-    current_tags = {m.group(2) for m in IMAGE_RE.finditer(build)}
+    dockerfile = DOCKERFILE.read_text(encoding="utf-8")
+    current_tags = {m.group(2) for m in IMAGE_RE.finditer(dockerfile)}
     if not current_tags:
-        print(f"no ghcr.io/esphome/esphome tag found in {BUILD_YAML}", file=sys.stderr)
+        print(f"no FROM ghcr.io/esphome/esphome:<tag> line found in {DOCKERFILE}", file=sys.stderr)
         return 1
     current = max(current_tags, key=_vtuple)
     if _vtuple(latest) <= _vtuple(current) and len(current_tags) == 1:
@@ -70,7 +70,7 @@ def main() -> int:
     major, minor, patch = (int(g) for g in match.groups())
     new_version = f"{major}.{minor}.{patch + 1}"
 
-    BUILD_YAML.write_text(IMAGE_RE.sub(rf"\g<1>{latest}", build), encoding="utf-8")
+    DOCKERFILE.write_text(IMAGE_RE.sub(rf"\g<1>{latest}", dockerfile), encoding="utf-8")
     CONFIG_YAML.write_text(
         VERSION_RE.sub(f"version: {new_version}", config, count=1), encoding="utf-8"
     )

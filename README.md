@@ -60,7 +60,7 @@ Assistant add-on with direct filesystem access — no SSH required.
 ## ESPHome version
 
 The add-on compiles with the ESPHome version of its base image
-(`ghcr.io/esphome/esphome:<tag>` in `esphome-mcp/build.yaml`), bumped with
+(`ghcr.io/esphome/esphome:<tag>` in `esphome-mcp/Dockerfile`), bumped with
 every add-on release. A daily GitHub Action opens a bump PR as soon as a new
 stable ESPHome release is published. `esphome_list_devices` prints that version, and
 `esphome_flash` first queries the device's running firmware: if it is

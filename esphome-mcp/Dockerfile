@@ -1,12 +1,13 @@
-ARG BUILD_FROM
-FROM ${BUILD_FROM}
+FROM ghcr.io/esphome/esphome:2026.10.2
 
 # Base image (ghcr.io/esphome/esphome) is Debian/glibc and already provides
 # esphome + PlatformIO with working ESP toolchains. We only add the MCP
 # server's Python dependencies on top.
 #
-# The base-image tag pinned in build.yaml is the ESPHome version this add-on
-# compiles with. It must be bumped together with the add-on version.
+# The base-image tag on the FROM line is the ESPHome version this add-on
+# compiles with. It must be bumped together with the add-on version, so
+# devices are never silently downgraded on flash. The image is multi-arch:
+# the build picks amd64 or arm64 for the host.
 #
 # The base image sets UV_SYSTEM_PYTHON=true and installs esphome into the
 # system interpreter, so the MCP deps must land there too (hence
