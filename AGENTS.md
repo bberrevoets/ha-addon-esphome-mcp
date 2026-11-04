@@ -52,6 +52,7 @@ install is the store add-on `c9d6b5b8_esphome-mcp` on the HA host `homebox`.
 - `scripts/deploy-dev.sh` — push the working tree to the HA host as a local
   dev add-on (see Building / Testing)
 - `scripts/render-icons.py` — rasterize `icon.svg`/`logo.svg` to PNG
+- `.github/workflows/ci.yml` — unit tests and Markdown lint on pull requests
 - `.github/workflows/esphome-bump.yml` + `.github/scripts/bump_esphome.py` —
   daily check for a new stable ESPHome release; opens/refreshes the
   `chore/esphome-bump` PR that bumps build.yaml, config.yaml and the CHANGELOG
@@ -152,6 +153,9 @@ On Windows the venv folder is `.venv/Scripts/` instead of `.venv/bin/`.
 
 Lint with `npx markdownlint-cli2 "**/*.md"`; `.markdownlint-cli2.jsonc` skips what `.gitignore` skips, such as `.venv/`.
 
+CI runs both on every pull request, on Linux with the Python of the add-on image. Where symlinks are not available,
+such as on Windows without the privilege, `test_push_rejects_symlink_escape` skips itself, so CI is where it always runs.
+
 1. **Local Docker build** (server smoke test on the dev machine):
 
    ```bash
@@ -194,7 +198,8 @@ cache paths). A daily run rebuilds the bump branch from `main`, so merge soon
 after pushing your own commits to it. Renovate was rejected for this: it cannot move `config.yaml`, `build.yaml` and
 the CHANGELOG in lockstep.
 
-Codex does not review bot PRs, so check them by hand:
+Bot PRs get no Codex review and no CI: GitHub starts no workflows for PRs made with the default token. For the same
+reason, never make the CI jobs required checks in the ruleset, or bump PRs could not be merged. Check them by hand:
 
 - Breaking changes: the GitHub release body, or `https://esphome.io/changelog/<version>.html` when it only links there.
 - `gh api repos/esphome/esphome/compare/<old>...<new>` stops at 300 files. Fetch `requirements.txt` per tag and diff
