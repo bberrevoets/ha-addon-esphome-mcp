@@ -104,7 +104,7 @@ with the device name until it reports `done` or `failed`.
 ## ESPHome version and firmware downgrades
 
 The add-on compiles with the ESPHome version of its base image — the tag
-pinned in `build.yaml` (shown by `esphome_list_devices` and in the add-on
+on the `FROM` line of its `Dockerfile` (shown by `esphome_list_devices` and in the add-on
 log at start). Each add-on release bumps that tag; update the add-on to get
 a newer ESPHome.
 

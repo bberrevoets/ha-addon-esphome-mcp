@@ -55,11 +55,10 @@ install is the store add-on `c9d6b5b8_esphome-mcp` on the HA host `homebox`.
 - `.github/workflows/ci.yml` — unit tests and Markdown lint on pull requests
 - `.github/workflows/esphome-bump.yml` + `.github/scripts/bump_esphome.py` —
   daily check for a new stable ESPHome release; opens/refreshes the
-  `chore/esphome-bump` PR that bumps build.yaml, config.yaml and the CHANGELOG
+  `chore/esphome-bump` PR that bumps the Dockerfile, config.yaml and the CHANGELOG
 - `esphome-mcp/` — The add-on
   - `config.yaml` — HA add-on manifest (name, version, ports, options)
-  - `build.yaml` — Multi-arch Docker build config
-  - `Dockerfile` — built on the official ESPHome (Debian/glibc) image
+  - `Dockerfile` — built on the official multi-arch ESPHome (Debian/glibc) image
   - `run.sh` — Add-on entry point (reads config, starts server)
   - `requirements.txt` — Python dependencies (mcp, uvicorn, pyyaml)
   - `server/` — Python package
@@ -104,7 +103,7 @@ install is the store add-on `c9d6b5b8_esphome-mcp` on the HA host `homebox`.
   tags to None and drops `<<: !include` merge keys (`flatten_mapping`)
 - **ESPHome**: Provided by the official `ghcr.io/esphome/esphome`
   (Debian/glibc) base image — required so the ESP cross-toolchains can run.
-  The tag pinned in `build.yaml` **is** the ESPHome version; bump it together
+  The tag on the `FROM` line of the `Dockerfile` **is** the ESPHome version; bump it together
   with `version:` in `config.yaml` and a CHANGELOG entry on every release
 - **Builds**: compile/flash run as background jobs; poll with
   `esphome_build_status` when a build outlives the sync window
@@ -119,7 +118,9 @@ install is the store add-on `c9d6b5b8_esphome-mcp` on the HA host `homebox`.
 - **Runtime env**: `run.sh` mirrors the official ESPHome add-on — data, build
   and PlatformIO caches under `/data` (`ESPHOME_DATA_DIR`, `PLATFORMIO_*_DIR`).
   Never use `/config/esphome/.esphome`; the Device Builder add-on wipes it
-- **Config mapping**: HA Supervisor maps `/config/` into the container
+- **Config mapping**: `config.yaml` mounts the HA configuration with `type: homeassistant_config`, `read_only: false` and
+  `path: /config`. Those two options are needed: its defaults are read-only at `/homeassistant`, and the server works in
+  `/config/esphome`. The older `config:rw` is deprecated
 - **Presentation files**: `icon.png` (128×128) and `logo.png` (250×100) next
   to `config.yaml`. Edit the SVG sources and regenerate with
   `python scripts/render-icons.py` (Playwright Chromium + Pillow). Commit the
@@ -160,8 +161,7 @@ such as on Windows without the privilege, `test_push_rejects_symlink_escape` ski
 
    ```bash
    cd esphome-mcp
-   BASE=$(sed -n 's/^  amd64: //p' build.yaml)
-   docker build --build-arg BUILD_FROM="$BASE" -t esphome-mcp .
+   docker build -t esphome-mcp .
    docker run -p 8099:8099 -v /path/to/config:/config -e ESPHOME_MCP_AUTH_TOKEN=test esphome-mcp
    ```
 
@@ -195,7 +195,7 @@ the official add-on's `docker/ha-addon-rootfs/etc/s6-overlay/s6-rc.d/esphome/run
 between the old and new ESPHome tag: `run.sh` mirrors its exports, and new
 ones are not listed as breaking changes (2026.10.0 added three toolchain and
 cache paths). A daily run rebuilds the bump branch from `main`, so merge soon
-after pushing your own commits to it. Renovate was rejected for this: it cannot move `config.yaml`, `build.yaml` and
+after pushing your own commits to it. Renovate was rejected for this: it cannot move `config.yaml`, the `Dockerfile` and
 the CHANGELOG in lockstep.
 
 Bot PRs get no Codex review and no CI: GitHub starts no workflows for PRs made with the default token. For the same
@@ -215,7 +215,7 @@ so an auto-generated token changes.
 
 For a manual release:
 
-1. Bump the base-image tag in `esphome-mcp/build.yaml` to the latest stable
+1. Bump the base-image tag on the `FROM` line of `esphome-mcp/Dockerfile` to the latest stable
    ESPHome (`ghcr.io/esphome/esphome:<tag>`, amd64 + arm64 are published).
 2. Bump `version:` in `esphome-mcp/config.yaml`.
 3. Add an entry to `esphome-mcp/CHANGELOG.md` (the copy HA displays) and

@@ -1,6 +1,6 @@
 # Opens (or refreshes) a PR that moves the add-on to the newest stable
-# ESPHome release. The base-image tag in esphome-mcp/build.yaml IS the
-# ESPHome version, so build.yaml, config.yaml `version:` and the add-on
+# ESPHome release. The base-image tag in esphome-mcp/Dockerfile IS the
+# ESPHome version, so the Dockerfile, config.yaml `version:` and the add-on
 # CHANGELOG are bumped together by .github/scripts/bump_esphome.py.
 #
 # Requires: Settings -> Actions -> General -> "Allow GitHub Actions to
@@ -44,7 +44,7 @@ jobs:
             grep -qx "${arch}" <<< "${archs}" || { echo "::error::image not published for ${arch} yet"; exit 1; }
           done
 
-      - name: Bump build.yaml, config.yaml and CHANGELOG
+      - name: Bump Dockerfile, config.yaml and CHANGELOG
         id: bump
         run: python3 .github/scripts/bump_esphome.py "${{ steps.latest.outputs.tag }}"
 
@@ -60,7 +60,7 @@ jobs:
             Automated bump to the latest stable ESPHome release
             [${{ steps.bump.outputs.esphome }}](https://github.com/esphome/esphome/releases/tag/${{ steps.bump.outputs.esphome }}).
 
-            - `esphome-mcp/build.yaml`: base image `ghcr.io/esphome/esphome:${{ steps.bump.outputs.esphome }}`
+            - `esphome-mcp/Dockerfile`: base image `ghcr.io/esphome/esphome:${{ steps.bump.outputs.esphome }}`
             - `esphome-mcp/config.yaml`: version `${{ steps.bump.outputs.version }}`
             - `esphome-mcp/CHANGELOG.md`: new release entry
 

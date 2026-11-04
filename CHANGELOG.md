@@ -25,6 +25,7 @@ Author: *Bert Berrevoets*
 
 Author: *Bert Berrevoets*
 
+- The bump workflow edits the `FROM` line in `esphome-mcp/Dockerfile`, because `build.yaml` is gone (add-on 1.3.4).
 - Update advice: users check for updates and then update, instead of reinstalling. Update keeps their token and caches,
   while a reinstall resets the token and, without a store refresh, installs the old version again. Changed in
   `AGENTS.md`, the 1.3.3 changelog entry and the text `bump_esphome.py` writes for new releases.
