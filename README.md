@@ -101,9 +101,23 @@ cd esphome-mcp && ../.venv/bin/python -m pytest
 ```
 
 The icon and logo are rendered from `esphome-mcp/*.svg` with
-`python scripts/render-icons.py`. See [CLAUDE.md](CLAUDE.md) for the release
+`python scripts/render-icons.py`. See [AGENTS.md](AGENTS.md) for the release
 checklist.
 
 ## License
 
 [MIT](LICENSE) — Berrevoets Systems
+
+## Conventions
+
+- **Branching:** GitHub Flow. `main` is protected and accepts changes only through pull requests.
+- **Markdown:** linted with `markdownlint-cli2`, 180 character limit.
+
+  ```sh
+  npx markdownlint-cli2 "**/*.md"
+  ```
+
+- **Binaries:** everything under `esphome-mcp/`, including the icon and logo, stays a plain git file because Home
+  Assistant clones without Git LFS. Any other binary goes through Git LFS; see [AGENTS.md](AGENTS.md).
+- **Agent instructions:** in [AGENTS.md](AGENTS.md), read by Claude Code, Codex and any other coding agent.
+  `CLAUDE.md` only imports it, so edit `AGENTS.md`.

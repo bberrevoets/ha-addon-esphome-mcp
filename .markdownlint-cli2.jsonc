@@ -1,0 +1,4 @@
+// Lint project files only: skip whatever .gitignore skips (.venv/ holds third-party markdown).
+{
+  "gitignore": true
+}
