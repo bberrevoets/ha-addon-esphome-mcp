@@ -210,7 +210,8 @@ reason, never make the CI jobs required checks in the ruleset, or bump PRs could
   `/proc/1/environ`.
 
 GitHub releases (`vX.Y.Z`, tag on the merge commit) are published only on Bert's explicit go. Follow the earlier
-releases: why, what to check in configs, how to update. A reinstall wipes `/data`, so an auto-generated token changes.
+releases: why, what to check in configs, how to update. Tell users to update, not reinstall: a reinstall wipes `/data`,
+so an auto-generated token changes.
 
 For a manual release:
 
@@ -220,8 +221,10 @@ For a manual release:
 3. Add an entry to `esphome-mcp/CHANGELOG.md` (the copy HA displays) and
    update README/DOCS if tools changed.
 4. Merge to `main` — HA picks up the new version from the repository.
-   Users must reinstall (not just restart) when the base image changed. HA caches the repository, so they first use
-   *Check for updates* in the add-on store; option-only changes just need a restart.
+   HA caches the repository, so users first use *Check for updates* in the add-on store, then **Update**. That rebuilds
+   from the new base image and keeps their token and caches (verified going from 1.3.2 to 1.3.3 on 2026-11-04). A reinstall
+   is not needed: it resets the token, and without the store refresh it installs the old version again. Option-only
+   changes just need a restart.
 
 ## Deployment
 
