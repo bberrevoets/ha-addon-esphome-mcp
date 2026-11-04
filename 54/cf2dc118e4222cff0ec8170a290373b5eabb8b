@@ -1,0 +1,25 @@
+.github/scripts/bump_esphome.py
+  s_ff81fa085b7bda::t_5bd31db9174551 85
+AGENTS.md
+  s_ff81fa085b7bda::t_43a1ececcdc8d1 213-214,224-227
+CHANGELOG.md
+  s_ff81fa085b7bda::t_5de15a48826d07 28-30
+esphome-mcp/CHANGELOG.md
+  s_ff81fa085b7bda::t_9cfbd35158f1e5 21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "54cf2dc118e4222cff0ec8170a290373b5eabb8b",
+  "prompts": {},
+  "sessions": {
+    "s_ff81fa085b7bda": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3067b35e-b90f-4ccf-9d41-72d2f41dcba2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "B.N. Berrevoets <bert@berrevoets.net>"
+    }
+  }
+}
