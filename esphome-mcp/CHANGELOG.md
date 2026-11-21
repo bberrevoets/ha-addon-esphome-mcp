@@ -10,6 +10,16 @@ All notable changes to this project will be documented in this file.
 - **genau-der-84** — issue reports #12 and #13
 - **GitHub Actions (esphome-bump)** — automated ESPHome version bumps
 
+## [1.3.5] - 2026-11-21
+
+### Changed
+
+Author: *GitHub Actions (esphome-bump)*
+
+- Base image bumped to `ghcr.io/esphome/esphome:2026.11.0` (was `2026.10.2`).
+  Release notes: <https://github.com/esphome/esphome/releases/tag/2026.11.0>.
+  In the add-on store, use *Check for updates*, then update the add-on. A restart alone keeps the old base image.
+
 ## [1.3.4] - 2026-11-04
 
 ### Changed
