@@ -1,4 +1,4 @@
-FROM ghcr.io/esphome/esphome:2026.10.2
+FROM ghcr.io/esphome/esphome:2026.11.0
 
 # Base image (ghcr.io/esphome/esphome) is Debian/glibc and already provides
 # esphome + PlatformIO with working ESP toolchains. We only add the MCP
